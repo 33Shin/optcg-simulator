@@ -1,0 +1,4 @@
+Image: 
+https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/one-piece/SET_ID/SET_ID-CARD_NUMBER_EN.webp
+Data:
+https://onepiece.limitlesstcg.com/api/cards/SET_ID-CARD_NUMBER

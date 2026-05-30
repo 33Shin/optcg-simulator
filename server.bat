@@ -1,0 +1,3 @@
+@echo off
+echo Starting Vite dev server on port 8000...
+npx vite
