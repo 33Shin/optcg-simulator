@@ -87,10 +87,10 @@ class ZoneRenderer {
 
       if (!isActive) {
         costTokenSprite.rotation = Math.PI / 2;
-        costTokenSprite.tint = 0x666666;
+         costTokenSprite.tint = '#666666';
       } else {
         costTokenSprite.rotation = 0;
-        costTokenSprite.tint = 0xffffff;
+         costTokenSprite.tint = '#ffffff';
       }
       costTokenSprite.alpha = 1;
       costTokenSprite.isCostToken = true;

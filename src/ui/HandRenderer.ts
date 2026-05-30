@@ -274,7 +274,7 @@ class HandRenderer {
       const playable = isCounterPhase
         ? this._isCounterPlayable(sprite.cardRef, player)
         : this._isPlayable(sprite.cardRef, player);
-      sprite.tint = playable ? 0xffffff : 0x666666;
+      sprite.tint = playable ? '#ffffff' : '#666666';
     }
   }
 

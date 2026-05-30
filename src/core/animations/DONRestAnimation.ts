@@ -56,11 +56,9 @@ export default class DONRestAnimation {
 
           // Rotate from 0 to PI/2 (90 degrees)
           sprite.rotation = (Math.PI / 2) * e;
-          // Tint from white (0xffffff) to gray (0x666666)
-          const r = Math.round(255 - 159 * e);
-          const g = Math.round(255 - 159 * e);
-          const b = Math.round(255 - 159 * e);
-          sprite.tint = (r << 16) | (g << 8) | b;
+          // Tint from white to gray
+          const v = Math.round(255 - 159 * e);
+          sprite.tint = `#${v.toString(16).padStart(2,'0')}${v.toString(16).padStart(2,'0')}${v.toString(16).padStart(2,'0')}`;
         }
 
         if (t >= 1) {
