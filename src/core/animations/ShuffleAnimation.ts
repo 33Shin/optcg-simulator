@@ -1,4 +1,4 @@
-
+import { gsap } from 'gsap';
 
 export default class ShuffleAnimation {
   static requires = ['zoneManager', 'zoneRenderer', 'players'];
@@ -26,7 +26,7 @@ export default class ShuffleAnimation {
       const existing = deckZone.children.filter(c => c.isCardBack);
       existing.forEach(c => deckZone.removeChild(c));
 
-      const shuffleSprites = [], startPoses = [];
+      const shuffleSprites = [];
       let completedCount = 0;
 
       const onAllDone = () => {
@@ -37,7 +37,6 @@ export default class ShuffleAnimation {
       };
 
       for (let i = 0; i < count; i++) {
-        startPoses.push({ x: baseX, y: baseY });
         const shuffleCardSprite = new PIXI.Sprite(backTexture);
         shuffleCardSprite.name = `shuffleCard_${pid}_${i}`;
         shuffleCardSprite.width = cardW; shuffleCardSprite.height = cardH;
@@ -50,24 +49,18 @@ export default class ShuffleAnimation {
         const dist = maxDist * (0.3 + Math.random() * 0.7);
         const dx = Math.cos(angle) * dist, dy = Math.sin(angle) * dist;
 
-        setTimeout(() => {
-          const start = performance.now();
-          const dur = 150 + Math.random() * 75;
-          const animate = (now) => {
-            const t = Math.min((now - start) / dur, 1);
-            const out = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-            shuffleCardSprite.x = startPoses[i].x + dx * out;
-            shuffleCardSprite.y = startPoses[i].y + dy * out;
-            if (t >= 1) {
-              deckZone.removeChild(shuffleCardSprite);
-              completedCount++;
-              if (completedCount >= count) onAllDone();
-              return;
-            }
-            requestAnimationFrame(animate);
-          };
-          requestAnimationFrame(animate);
-        }, Math.random() * 500);
+        gsap.to(shuffleCardSprite, {
+          x: baseX + dx,
+          y: baseY + dy,
+          duration: (150 + Math.random() * 75) / 1000,
+          delay: Math.random() * 0.5,
+          ease: 'power3.inOut',
+          onComplete: () => {
+            deckZone.removeChild(shuffleCardSprite);
+            completedCount++;
+            if (completedCount >= count) onAllDone();
+          },
+        });
       }
     });
   }

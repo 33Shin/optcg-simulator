@@ -1,4 +1,4 @@
-import { easeOutQuad } from './utils';
+import { gsap } from 'gsap';
 
 export default class DONRestAnimation {
   static requires = ['app', 'zoneManager', 'players'];
@@ -42,32 +42,29 @@ export default class DONRestAnimation {
       return;
     }
 
-    const dur = 250;
-    const t0 = performance.now();
+    const dur = 0.25;
 
     await new Promise((resolve) => {
-      const tick = (now) => {
-        const elapsed = now - t0;
-        const t = Math.min(elapsed / dur, 1);
-        const e = easeOutQuad(t);
+      const proxy = { t: 0 };
+      gsap.to(proxy, {
+        t: 1,
+        duration: dur,
+        ease: 'power2.out',
+        onUpdate: function () {
+          const e = proxy.t;
 
-        for (const { sprite } of targets) {
-          if (!sprite.parent) continue;
+          for (const { sprite } of targets) {
+            if (!sprite.parent) continue;
 
-          // Rotate from 0 to PI/2 (90 degrees)
-          sprite.rotation = (Math.PI / 2) * e;
-          // Tint from white to gray
-          const v = Math.round(255 - 159 * e);
-          sprite.tint = `#${v.toString(16).padStart(2,'0')}${v.toString(16).padStart(2,'0')}${v.toString(16).padStart(2,'0')}`;
-        }
-
-        if (t >= 1) {
-          resolve();
-          return;
-        }
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
+            // Rotate from 0 to PI/2 (90 degrees)
+            sprite.rotation = (Math.PI / 2) * e;
+            // Tint from white to gray
+            const v = Math.round(255 - 159 * e);
+            sprite.tint = `#${v.toString(16).padStart(2, '0')}${v.toString(16).padStart(2, '0')}${v.toString(16).padStart(2, '0')}`;
+          }
+        },
+        onComplete: resolve,
+      });
     });
   }
 }

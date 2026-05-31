@@ -1,4 +1,5 @@
-import { makeFlyCard, getDisplayTexture, easeInOut } from './utils';
+import { gsap } from 'gsap';
+import { makeFlyCard, getDisplayTexture } from './utils';
 
 export default class FlyToTrashAnimation {
   static requires = ['app', 'zoneManager'];
@@ -45,32 +46,31 @@ export default class FlyToTrashAnimation {
       trashFlyCard.rotation = card.rested ? Math.PI / 2 : 0;
       app.stage.addChild(trashFlyCard);
 
+      const trashScale = 0.857;
       const startRotation = card.rested ? Math.PI / 2 : 0;
-      const duration = 400;
-      const start = performance.now();
 
-      const tick = (now) => {
-        const elapsed = now - start;
-        const t = Math.min(elapsed / duration, 1);
-        const e = easeInOut(t);
+      const proxy = { t: 0 };
+      gsap.to(proxy, {
+        t: 1,
+        duration: 0.4,
+        ease: 'sine.inOut',
+        onUpdate: function () {
+          const e = proxy.t;
 
-        // Ghost card: fly to trash
-        trashFlyCard.x = slotPos.x + (trashPos.x - slotPos.x) * e;
-        trashFlyCard.y = slotPos.y + (trashPos.y - slotPos.y) * e;
-        trashFlyCard.rotation = startRotation * (1 - e);
-        const trashScale = 0.857;
-        const shrink = 1 - e * (1 - trashScale);
-        trashFlyCard.scale.set(shrink, shrink);
-        trashFlyCard.alpha = 1;
-
-        if (t >= 1) {
+          // Ghost card: fly to trash
+          trashFlyCard.x = slotPos.x + (trashPos.x - slotPos.x) * e;
+          trashFlyCard.y = slotPos.y + (trashPos.y - slotPos.y) * e;
+          trashFlyCard.rotation = startRotation * (1 - e);
+          const shrink = 1 - e * (1 - trashScale);
+          trashFlyCard.scale.set(shrink, shrink);
+          trashFlyCard.alpha = 1;
+        },
+        onComplete: () => {
+          trashFlyCard.rotation = 0;
           if (trashFlyCard.parent) trashFlyCard.parent.removeChild(trashFlyCard);
           resolve();
-          return;
-        }
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
+        },
+      });
     });
   }
 }

@@ -1,4 +1,4 @@
-import { easeInOut } from './utils';
+import { gsap } from 'gsap';
 
 export default class FlyToHandAnimation {
   static requires = [];
@@ -18,35 +18,29 @@ export default class FlyToHandAnimation {
    * @returns {Promise<void>}
    */
   animate(pid, returnTargets, options = {}) {
-    const duration = options.duration || 700;
+    const duration = (options.duration || 700) / 1000;
     const startDelay = options.startDelay ?? 0;
 
     if (!returnTargets.length) return Promise.resolve();
 
     return new Promise((resolve) => {
-      const start = performance.now();
+      const proxy = { t: 0 };
+      gsap.to(proxy, {
+        t: 1,
+        duration,
+        delay: startDelay * duration,
+        ease: 'sine.inOut',
+        onUpdate: function () {
+          const e = proxy.t;
 
-      requestAnimationFrame(function tick(now) {
-        const elapsed = now - start;
-        const t = Math.min(elapsed / duration, 1);
-
-        let retT = 0;
-        if (t > startDelay) {
-          retT = easeInOut(Math.min((t - startDelay) / (1 - startDelay), 1));
-        }
-
-        for (const rt of returnTargets) {
-          const sp = rt.flyCard;
-          sp.x = sp._targetX + (rt.toPos.x - sp._targetX) * retT;
-          sp.y = sp._targetY + (rt.toPos.y - sp._targetY) * retT;
-          sp.scale.set(sp._targetScale - retT * (sp._targetScale - 0.95));
-        }
-
-        if (t < 1) {
-          requestAnimationFrame(tick);
-        } else {
-          resolve();
-        }
+          for (const rt of returnTargets) {
+            const sp = rt.flyCard;
+            sp.x = sp._targetX + (rt.toPos.x - sp._targetX) * e;
+            sp.y = sp._targetY + (rt.toPos.y - sp._targetY) * e;
+            sp.scale.set(sp._targetScale - e * (sp._targetScale - 0.95));
+          }
+        },
+        onComplete: resolve,
       });
     });
   }

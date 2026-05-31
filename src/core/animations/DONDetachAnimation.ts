@@ -1,3 +1,5 @@
+import { gsap } from 'gsap';
+
 class DONDetachAnimation {
   static requires = ['players', 'zoneManager'];
 
@@ -8,8 +10,7 @@ class DONDetachAnimation {
   async animate(pid) {
     const { players, zoneManager } = this.ctx;
     const player = players[pid];
-    const duration = 500;
-    const t0 = performance.now();
+    const duration = 0.5;
 
     const targets = [];
 
@@ -43,25 +44,22 @@ class DONDetachAnimation {
     if (targets.length === 0) return;
 
     await new Promise((resolve) => {
-      const tick = (now) => {
-        const elapsed = now - t0;
-        const p = Math.min(elapsed / duration, 1);
+      gsap.to({}, {
+        duration,
+        ease: 'none',
+        onUpdate: function () {
+          const p = this.progress();
 
-        for (const { powerText, card } of targets) {
-          const basePower = card.power || 0;
-          const currentPower = card.currentPower || card.power || 0;
-          const displayPower = Math.round(currentPower + (basePower - currentPower) * p);
-          powerText.text = String(displayPower);
-          powerText.style.fill = lerpColor(0xffd700, 0xffffff, p);
-        }
-
-        if (p >= 1) {
-          resolve();
-          return;
-        }
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
+          for (const { powerText, card } of targets) {
+            const basePower = card.power || 0;
+            const currentPower = card.currentPower || card.power || 0;
+            const displayPower = Math.round(currentPower + (basePower - currentPower) * p);
+            powerText.text = String(displayPower);
+            powerText.style.fill = lerpColor(0xffd700, 0xffffff, p);
+          }
+        },
+        onComplete: resolve,
+      });
     });
   }
 }

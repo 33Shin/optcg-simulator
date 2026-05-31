@@ -1,3 +1,4 @@
+import { gsap } from 'gsap';
 import { easeInOut, createFlipCard, getDisplayTexture, makeFlyCard } from './utils';
 
 export default class InitialDrawAnimation {
@@ -42,9 +43,9 @@ export default class InitialDrawAnimation {
     const fromPos = app.stage.toLocal(deckC);
     const backTexture = PIXI.Texture.from('assets/imgs/back.webp');
 
-    const flightDuration = 600;
-    const fadeInMs = 40;
-    const delayMs = 60;
+    const flightDuration = 0.6;
+    const fadeInMs = 0.04;
+    const delayMs = 0.06;
     const arcHeight = 50;
     const startScale = 0.4;
     const peakScale = 1.1;
@@ -60,61 +61,51 @@ export default class InitialDrawAnimation {
       );
 
       const flyCard = makeFlyCard(backTexture, card, cardW, cardH);
-      const start = performance.now() + cIdx * delayMs;
-
       flyCard.position.set(fromPos.x, fromPos.y);
       flyCard.pivot.set(cardW / 2, cardH / 2);
       flyCard.scale.set(startScale, startScale);
       flyCard.alpha = 0;
       app.stage.addChild(flyCard);
 
-      const animLen = flightDuration - fadeInMs;
-
       promises.push(new Promise((resolve) => {
-        requestAnimationFrame(function tick(now) {
-          const elapsed = now - start;
-          if (elapsed < 0) {
-            requestAnimationFrame(tick);
-            return;
-          }
-
-          if (elapsed < fadeInMs) {
-            flyCard.alpha = elapsed / fadeInMs;
-            flyCard.x = fromPos.x;
-            flyCard.y = fromPos.y;
-            flyCard.scale.set(startScale, startScale);
-            requestAnimationFrame(tick);
-            return;
-          }
-
-          const rawT = Math.min((elapsed - fadeInMs) / animLen, 1);
-          const et = easeInOut(rawT);
-
-          flyCard.x = fromPos.x + (toPos.x - fromPos.x) * et;
-          flyCard.y = fromPos.y + (toPos.y - fromPos.y) * et
-                        - 4 * arcHeight * rawT * (1 - rawT);
-
-          let s;
-          if (rawT <= 0.5) {
-            const ht = easeInOut(rawT / 0.5);
-            s = startScale + (peakScale - startScale) * ht;
-          } else {
-            const ht = easeInOut((rawT - 0.5) / 0.5);
-            s = peakScale + (landScale - peakScale) * ht;
-          }
-          flyCard.scale.set(s, s);
-          flyCard.alpha = 1;
-
-          if (rawT < 1) {
-            requestAnimationFrame(tick);
-          } else {
-            if (flyCard.parent) {
-              app.stage.removeChild(flyCard);
-            }
+        const tl = gsap.timeline({
+          delay: cIdx * delayMs,
+          onComplete: () => {
+            if (flyCard.parent) app.stage.removeChild(flyCard);
             p.hand.push(card);
             handRenderer.addSpriteAt(pid, targetSlot, card, layout);
             resolve();
-          }
+          },
+        });
+
+        // Fade in
+        tl.to(flyCard, { alpha: 1, duration: fadeInMs, ease: 'none' });
+
+        // Fly to hand with arc and scale interpolation
+        const proxy = { t: 0 };
+        tl.to(proxy, {
+          t: 1,
+          duration: flightDuration - fadeInMs,
+          ease: 'sine.inOut',
+          onUpdate: () => {
+            const rawT = proxy.t;
+            const et = rawT;
+
+            flyCard.x = fromPos.x + (toPos.x - fromPos.x) * et;
+            flyCard.y = fromPos.y + (toPos.y - fromPos.y) * et
+                          - 4 * arcHeight * rawT * (1 - rawT);
+
+            let s;
+            if (rawT <= 0.5) {
+              const ht = rawT / 0.5;
+              s = startScale + (peakScale - startScale) * ht;
+            } else {
+              const ht = (rawT - 0.5) / 0.5;
+              s = peakScale + (landScale - peakScale) * ht;
+            }
+            flyCard.scale.set(s, s);
+            flyCard.alpha = 1;
+          },
         });
       }));
     }
@@ -193,42 +184,38 @@ export default class InitialDrawAnimation {
   }
 
   _animateFlyToCenter(pid, card, fromPos, targetX, targetY, cardW, cardH) {
+    const { app } = this.ctx;
+
+    const flyCard = createFlipCard(getDisplayTexture(pid, card), card, cardW, cardH);
+    flyCard.position.set(fromPos.x, fromPos.y);
+    app.stage.addChild(flyCard);
+
+    this._mulliganSprites.push({ flyCard, card });
+
     return new Promise((resolve) => {
-      const { app } = this.ctx;
+      const proxy = { t: 0 };
+      gsap.to(proxy, {
+        t: 1,
+        duration: 0.6,
+        ease: 'sine.inOut',
+        onUpdate: function () {
+          const eased = proxy.t;
 
-      const flyCard = createFlipCard(getDisplayTexture(pid, card), card, cardW, cardH);
-      flyCard.position.set(fromPos.x, fromPos.y);
-      app.stage.addChild(flyCard);
+          const flipSign = 2 * eased - 1;
+          const growthScale = 1 + eased * 0.5;
 
-      this._mulliganSprites.push({ flyCard, card });
+          if (eased < 0.5) flyCard.showBack();
+          else flyCard.showFront();
 
-       const duration = 600;
-       const start = performance.now();
-
-       const tick = (now) => {
-         const elapsed = now - start;
-         const t = Math.min(elapsed / duration, 1);
-         const eased = easeInOut(t);
-
-         const flipSign = 2 * eased - 1;
-        const growthScale = 1 + eased * 0.5;
-
-        if (t < 0.5) flyCard.showBack();
-        else flyCard.showFront();
-
-         flyCard.scale.set(Math.abs(flipSign) * growthScale, growthScale);
-         flyCard.x = fromPos.x + (targetX - fromPos.x) * eased;
-        flyCard.y = fromPos.y + (targetY - fromPos.y) * eased;
-
-        if (t < 1) {
-          requestAnimationFrame(tick);
-        } else {
+          flyCard.scale.set(Math.abs(flipSign) * growthScale, growthScale);
+          flyCard.x = fromPos.x + (targetX - fromPos.x) * eased;
+          flyCard.y = fromPos.y + (targetY - fromPos.y) * eased;
+        },
+        onComplete: () => {
           flyCard.scale.set(1.5, 1.5);
           resolve();
-        }
-      };
-
-      requestAnimationFrame(tick);
+        },
+      });
     });
   }
 
@@ -263,27 +250,22 @@ export default class InitialDrawAnimation {
         const fromX = flyCard.x;
         const fromY = flyCard.y;
 
-        const duration = 500;
-        const start = performance.now();
-
-        const tick = (now) => {
-          const elapsed = now - start;
-          const t = Math.min(elapsed / duration, 1);
-          const eased = easeInOut(t);
-
-          flyCard.x = fromX + (toPos.x - fromX) * eased;
-          flyCard.y = fromY + (toPos.y - fromY) * eased;
-          flyCard.scale.set(1.5 - eased * 0.55, 1.5 - eased * 0.55);
-
-          if (t < 1) {
-            requestAnimationFrame(tick);
-          } else {
+        const proxy = { t: 0 };
+        gsap.to(proxy, {
+          t: 1,
+          duration: 0.5,
+          ease: 'sine.inOut',
+          onUpdate: function () {
+            const eased = proxy.t;
+            flyCard.x = fromX + (toPos.x - fromX) * eased;
+            flyCard.y = fromY + (toPos.y - fromY) * eased;
+            flyCard.scale.set(1.5 - eased * 0.55, 1.5 - eased * 0.55);
+          },
+          onComplete: () => {
             flyCard.scale.set(0.95, 0.95);
             resolve();
-          }
-        };
-
-        requestAnimationFrame(tick);
+          },
+        });
       });
     });
 
@@ -348,35 +330,30 @@ export default class InitialDrawAnimation {
         flyCard.alpha = 1;
         app.stage.addChild(flyCard);
 
-        const duration = 500;
-        const delay = (handCards.length - 1 - i) * 80;
-        const start = performance.now();
-
         const arcHeight = 50;
-        const tick = (now) => {
-          const elapsed = now - start - delay;
-          if (elapsed < 0) {
-            requestAnimationFrame(tick);
-            return;
-          }
-          const t = Math.min(elapsed / duration, 1);
-          const eased = easeInOut(t);
 
-          flyCard.x = fromPos.x + (toPos.x - fromPos.x) * eased;
-          flyCard.y = fromPos.y + (toPos.y - fromPos.y) * eased
-                        - 4 * arcHeight * t * (1 - t);
-          flyCard.alpha = 1 - eased * 0.3;
-          const s = 0.95 - eased * 0.3;
-          flyCard.scale.set(s, s);
+        const proxy = { t: 0 };
+        gsap.to(proxy, {
+          t: 1,
+          duration: 0.5,
+          delay: (handCards.length - 1 - i) * 0.08,
+          ease: 'sine.inOut',
+          onUpdate: function () {
+            const eased = proxy.t;
+            const t = eased;
 
-          if (t < 1) {
-            requestAnimationFrame(tick);
-          } else {
+            flyCard.x = fromPos.x + (toPos.x - fromPos.x) * eased;
+            flyCard.y = fromPos.y + (toPos.y - fromPos.y) * eased
+                          - 4 * arcHeight * t * (1 - t);
+            flyCard.alpha = 1 - eased * 0.3;
+            const s = 0.95 - eased * 0.3;
+            flyCard.scale.set(s, s);
+          },
+          onComplete: () => {
             if (flyCard.parent) app.stage.removeChild(flyCard);
             resolve();
-          }
-        };
-        requestAnimationFrame(tick);
+          },
+        });
       });
     });
 
@@ -414,45 +391,39 @@ export default class InitialDrawAnimation {
       return new Promise((resolve) => {
         const fromX = flyCard.x;
         const fromY = flyCard.y;
-          const duration = 600;
-          const delay = idx * 60;
-        const start = performance.now();
-
         const arcHeight = 50;
-        const tick = (now) => {
-          const elapsed = now - start - delay;
-          if (elapsed < 0) {
-            requestAnimationFrame(tick);
-            return;
-          }
-          const t = Math.min(elapsed / duration, 1);
-          const eased = easeInOut(t);
 
-          flyCard.x = fromX + (toPos.x - fromX) * eased;
-          flyCard.y = fromY + (toPos.y - fromY) * eased
-                        - 4 * arcHeight * t * (1 - t);
+        const proxy = { t: 0 };
+        gsap.to(proxy, {
+          t: 1,
+          duration: 0.6,
+          delay: idx * 0.06,
+          ease: 'sine.inOut',
+          onUpdate: function () {
+            const eased = proxy.t;
+            const t = eased;
 
-          // Flip from face-up to face-down
-          const flipSign = 1 - 2 * t;
-          const shrinkScale = 1.5 - eased * 0.55;
-          flyCard.scale.set(flipSign * shrinkScale, shrinkScale);
+            flyCard.x = fromX + (toPos.x - fromX) * eased;
+            flyCard.y = fromY + (toPos.y - fromY) * eased
+                          - 4 * arcHeight * t * (1 - t);
 
-          if (t < 0.5) flyCard.showFront();
-          else flyCard.showBack();
+            // Flip from face-up to face-down
+            const flipSign = 1 - 2 * t;
+            const shrinkScale = 1.5 - eased * 0.55;
+            flyCard.scale.set(flipSign * shrinkScale, shrinkScale);
 
-          flyCard.alpha = 1;
+            if (t < 0.5) flyCard.showFront();
+            else flyCard.showBack();
 
-          if (t < 1) {
-            requestAnimationFrame(tick);
-          } else {
+            flyCard.alpha = 1;
+          },
+          onComplete: () => {
             if (flyCard.parent) {
               app.stage.removeChild(flyCard);
             }
             resolve();
-          }
-        };
-
-        requestAnimationFrame(tick);
+          },
+        });
       });
     });
 
@@ -461,76 +432,78 @@ export default class InitialDrawAnimation {
   }
 
     _animateSingleCardFly(pid, card, i, cards, layout, centerPos, centerSpacing, fromPos, handZone, cardW, cardH, shouldFlip, slotOrder) {
+    const { app } = this.ctx;
+    const handIdx = slotOrder ? slotOrder[i] : i;
+    const targetPos = layout.positions[handIdx] || layout.positions[layout.positions.length - 1];
+
+    const offset = i - (cards.length - 1) / 2;
+    const centerX = centerPos.x + offset * centerSpacing;
+
+    const toPos = app.stage.toLocal(
+      handZone.toGlobal(new PIXI.Point(targetPos.x + cardW / 2, targetPos.y + cardH / 2))
+    );
+
+    const flyCard = shouldFlip
+      ? createFlipCard(getDisplayTexture(pid, card), card, cardW, cardH)
+      : makeFlyCard(getDisplayTexture(pid, card) || PIXI.Texture.from('assets/imgs/back.webp'), card, cardW, cardH);
+    flyCard.position.set(fromPos.x, fromPos.y);
+    app.stage.addChild(flyCard);
+
+    const phase1 = 0.45, phase2 = 0.2, phase3 = 0.5;
+
     return new Promise((resolve) => {
-      const { app } = this.ctx;
-      const handIdx = slotOrder ? slotOrder[i] : i;
-      const targetPos = layout.positions[handIdx] || layout.positions[layout.positions.length - 1];
+      const tl = gsap.timeline({
+        onComplete: () => {
+          app.stage.removeChild(flyCard);
+          resolve();
+        },
+      });
 
-      const offset = i - (cards.length - 1) / 2;
-      const centerX = centerPos.x + offset * centerSpacing;
-
-      const toPos = app.stage.toLocal(
-        handZone.toGlobal(new PIXI.Point(targetPos.x + cardW / 2, targetPos.y + cardH / 2))
-      );
-
-      const flyCard = shouldFlip
-        ? createFlipCard(getDisplayTexture(pid, card), card, cardW, cardH)
-        : makeFlyCard(getDisplayTexture(pid, card) || PIXI.Texture.from('assets/imgs/back.webp'), card, cardW, cardH);
-      flyCard.position.set(fromPos.x, fromPos.y);
-      app.stage.addChild(flyCard);
-
-       const phase1 = 450, phase2 = 200, phase3 = 500;
-      const total = phase1 + phase2 + phase3;
-      const start = performance.now();
-
-      requestAnimationFrame(function tick(now) {
-        const elapsed = now - start;
-
-        // Phase 1: Fly from deck up to the center, flipping from back to front if shouldFlip
-        if (elapsed < phase1) {
-          const moveProgress = elapsed / phase1;
-          const moveEase = easeInOut(moveProgress);
+      // Phase 1: Fly from deck up to the center, flipping from back to front if shouldFlip
+      const proxy1 = { t: 0 };
+      tl.to(proxy1, {
+        t: 1,
+        duration: phase1,
+        ease: 'sine.inOut',
+        onUpdate: () => {
+          const moveEase = proxy1.t;
 
           if (shouldFlip) {
             const flipSign = 2 * moveEase - 1;
             const growthScale = 1 + moveEase * 0.5;
 
-            if (moveProgress < 0.5) flyCard.showBack();
+            if (proxy1.t < 0.5) flyCard.showBack();
             else flyCard.showFront();
 
-             flyCard.scale.set(Math.abs(flipSign) * growthScale, growthScale);
+            flyCard.scale.set(Math.abs(flipSign) * growthScale, growthScale);
           } else {
             flyCard.scale.set(1 + moveEase * 0.5, 1 + moveEase * 0.5);
           }
 
           flyCard.x = fromPos.x + (centerX - fromPos.x) * moveEase;
           flyCard.y = fromPos.y + (centerPos.y - fromPos.y) * moveEase;
-          requestAnimationFrame(tick);
-          return;
-        }
+        },
+      });
 
-        // Phase 2: Hold face-up at center at 1.5x scale (dramatic pause)
-        if (elapsed < phase1 + phase2) {
-          flyCard.x = centerX;
-          flyCard.y = centerPos.y;
-          flyCard.scale.set(1.5, 1.5);
-          requestAnimationFrame(tick);
-          return;
-        }
+      // Phase 2: Hold face-up at center at 1.5x scale (dramatic pause)
+      tl.to({}, { duration: phase2, onUpdate: () => {
+        flyCard.x = centerX;
+        flyCard.y = centerPos.y;
+        flyCard.scale.set(1.5, 1.5);
+      }});
 
-        // Phase 3: Fly from center down to the hand slot, scaling back to 1.0
-        if (elapsed < total) {
-          const ease = easeInOut((elapsed - phase1 - phase2) / phase3);
+      // Phase 3: Fly from center down to the hand slot, scaling back to 1.0
+      const proxy3 = { t: 0 };
+      tl.to(proxy3, {
+        t: 1,
+        duration: phase3,
+        ease: 'sine.inOut',
+        onUpdate: () => {
+          const ease = proxy3.t;
           flyCard.x = centerX + (toPos.x - centerX) * ease;
           flyCard.y = centerPos.y + (toPos.y - centerPos.y) * ease;
           flyCard.scale.set(1.5 - ease * 0.5, 1.5 - ease * 0.5);
-          requestAnimationFrame(tick);
-          return;
-        }
-
-        // Done — remove fly-card and resolve
-        app.stage.removeChild(flyCard);
-        resolve();
+        },
       });
     });
   }

@@ -1,3 +1,5 @@
+import { gsap } from 'gsap';
+
 export default class DONDrawAnimation {
   static requires = ['zoneManager', 'zoneRenderer'];
 
@@ -13,7 +15,7 @@ export default class DONDrawAnimation {
     if (donZone) {
       const donTiles = donZone.children.filter(c => c.isDONTile);
       if (donTiles.length > 0) {
-        await this._fadeOutTile(donTiles[donTiles.length - 1], 250);
+        await this._fadeOutTile(donTiles[donTiles.length - 1], 0.25);
       }
     }
 
@@ -23,15 +25,12 @@ export default class DONDrawAnimation {
 
   _fadeOutTile(sprite, duration) {
     return new Promise((resolve) => {
-      sprite.alpha = 1;
-      const startFade = performance.now();
-      const tick = (now) => {
-        const t = Math.min((now - startFade) / duration, 1);
-        sprite.alpha = 1 - t;
-        if (t >= 1) resolve();
-        else requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
+      gsap.to(sprite, {
+        alpha: 0,
+        duration,
+        ease: 'none',
+        onComplete: resolve,
+      });
     });
   }
 }

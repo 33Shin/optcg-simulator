@@ -1,4 +1,4 @@
-import { easeOutQuad } from './utils';
+import { gsap } from 'gsap';
 
 export default class ActiveAnimation {
   static requires = ['app', 'zoneManager', 'players'];
@@ -57,8 +57,7 @@ export default class ActiveAnimation {
 
     if (targets.length === 0) return;
 
-    const dur = 250;
-    const t0 = performance.now();
+    const dur = 0.25;
 
     // Create activation glow overlay
     const glowGraphics = new PIXI.Graphics();
@@ -67,37 +66,38 @@ export default class ActiveAnimation {
     app.stage.addChildAt(glowGraphics, 0);
 
     await new Promise((resolve) => {
-      const tick = (now) => {
-        const elapsed = now - t0;
-        const t = Math.min(elapsed / dur, 1);
-        const e = easeOutQuad(t);
+      const proxy = { t: 0 };
+      gsap.to(proxy, {
+        t: 1,
+        duration: dur,
+        ease: 'power2.out',
+        onUpdate: function () {
+          const t = proxy.t;
+          const e = t;
 
-        // Activation glow: peaks at 40% then fades
-        const glowIntensity = t < 0.4 ? t / 0.4 : 1 - (t - 0.4) / 0.6;
-        const glowAlpha = Math.max(0, glowIntensity * 0.15);
+          // Activation glow: peaks at 40% then fades
+          const glowIntensity = t < 0.4 ? t / 0.4 : 1 - (t - 0.4) / 0.6;
+          const glowAlpha = Math.max(0, glowIntensity * 0.15);
 
-        for (const { sprite, type } of targets) {
-          if (!sprite.parent) continue;
+          for (const { sprite, type } of targets) {
+            if (!sprite.parent) continue;
 
-          sprite.rotation = (Math.PI / 2) * (1 - e);
-        }
+            sprite.rotation = (Math.PI / 2) * (1 - e);
+          }
 
-        // Draw glow overlay
-        glowGraphics.clear();
-        if (glowAlpha > 0) {
-          glowGraphics.rect(0, 0, app.screen.width, app.screen.height)
-              .fill({ color: 0xffd700, alpha: glowAlpha });
-        }
-
-        if (t >= 1) {
+          // Draw glow overlay
+          glowGraphics.clear();
+          if (glowAlpha > 0) {
+            glowGraphics.rect(0, 0, app.screen.width, app.screen.height)
+                .fill({ color: 0xffd700, alpha: glowAlpha });
+          }
+        },
+        onComplete: () => {
           glowGraphics.clear();
           if (glowGraphics.parent) glowGraphics.parent.removeChild(glowGraphics);
           resolve();
-          return;
-        }
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
+        },
+      });
     });
   }
 }
