@@ -76,6 +76,8 @@ class FieldRenderer {
     const existingSprites = zone.children.filter(c => c.isLeaderSprite);
     existingSprites.forEach(c => zone.removeChild(c));
 
+    if (!p.leader) return;
+
     const leaderCardSprite = this.renderer.render(p.leader, false, 1.5);
     leaderCardSprite.name = `leaderSprite_${pid}`;
     leaderCardSprite.isLeaderSprite = true;

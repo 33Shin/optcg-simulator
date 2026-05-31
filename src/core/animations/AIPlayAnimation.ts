@@ -1,10 +1,9 @@
-import { easeInOut, createFlipCard } from './utils';
+import { gsap } from 'gsap';
+import { createFlipCard } from './utils';
 
-const liftDistance = 180;
 const yLift = 30;
 const slamOvershoot = 35;
 const bounceCount = 3;
-const bounceAmp = 8;
 
 export default class AIPlayAnimation {
   static requires = ['app', 'zoneManager'];
@@ -13,15 +12,6 @@ export default class AIPlayAnimation {
     this.ctx = ctx;
   }
 
-  /**
-   * AI plays a character card: face-down card flies from hand,
-   * flips at center screen, then slams to field slot.
-   *
-   * @param {number} pid - Player ID (2 = opponent)
-   * @param {object} card - Card object
-   * @param {PIXI.Container} fieldSlot - The target field slot zone
-   * @returns {Promise<void>}
-   */
   animate(pid, card, fieldSlot) {
     return new Promise((resolve) => {
       const { app } = this.ctx;
@@ -75,96 +65,89 @@ export default class AIPlayAnimation {
       const shakeIntensity = 10;
       const total = flyDur + holdDur + slamDur + impactDur + bounceDur;
 
-      const start = performance.now();
+      const proxy = { t: 0 };
+      gsap.to(proxy, {
+        t: 1,
+        duration: total / 1000,
+        ease: 'none',
+        onUpdate: () => {
+          const t = proxy.t;
 
-      const tick = (now) => {
-        const elapsed = now - start;
-        const t = Math.min(elapsed / total, 1);
+          if (t < flyDur / total) {
+            const p = t / (flyDur / total);
+            const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
 
-        if (t < flyDur / total) {
-          // Phase 1: Fly from hand to center, scale up, flip midway
-          const p = elapsed / flyDur;
-          const e = easeInOut(p);
+            flyCard.x = startPos.x + (centerPos.x - startPos.x) * e;
+            flyCard.y = startPos.y + (centerPos.y - startPos.y) * e;
 
-          flyCard.x = startPos.x + (centerPos.x - startPos.x) * e;
-          flyCard.y = startPos.y + (centerPos.y - startPos.y) * e;
+            const baseScale = 1 + (fieldScale - 1) * e;
+            const flipSign = 1 - p * 2;
 
-          const baseScale = 1 + (fieldScale - 1) * e;
-          const flipSign = 1 - p * 2;
-
-          if (p < 0.5) {
-            flyCard.showBack();
-            flyCard.scale.set(Math.abs(flipSign) * baseScale, baseScale);
-          } else if (p < 0.52) {
-            flyCard.scale.x = 0;
-          } else {
+            if (p < 0.5) {
+              flyCard.showBack();
+              flyCard.scale.set(Math.abs(flipSign) * baseScale, baseScale);
+            } else if (p < 0.52) {
+              flyCard.scale.x = 0;
+            } else {
+              flyCard.showFront();
+              flyCard.scale.set(Math.abs(flipSign) * baseScale, baseScale);
+            }
+          }
+          else if (t < (flyDur + holdDur) / total) {
+            flyCard.x = centerPos.x;
+            flyCard.y = centerPos.y;
             flyCard.showFront();
-            flyCard.scale.set(Math.abs(flipSign) * baseScale, baseScale);
+            flyCard.scale.set(fieldScale * 1.6, fieldScale * 1.6);
           }
-        }
-        else if (t < (flyDur + holdDur) / total) {
-          // Phase 2: Hold at center, fully revealed, ready to slam
-          flyCard.x = centerPos.x;
-          flyCard.y = centerPos.y;
-          flyCard.showFront();
-          flyCard.scale.set(fieldScale * 1.6, fieldScale * 1.6);
-        }
-        else if (t < (flyDur + holdDur + slamDur) / total) {
-          // Phase 3: Slam down to field slot
-          const p = (elapsed / total - flyDur / total - holdDur / total) / (slamDur / total);
-          const e = p * p * p;
+          else if (t < (flyDur + holdDur + slamDur) / total) {
+            const p = (t - flyDur / total - holdDur / total) / (slamDur / total);
+            const e = p * p * p;
 
-          flyCard.x = centerPos.x + (slotStagePos.x - centerPos.x) * e;
-          flyCard.y = centerPos.y - yLift * (1 - e) + (yLift + slamOvershoot) * e;
-          flyCard.scale.set(
-            fieldScale * 1.6 - e * 0.6,
-            fieldScale * 1.6 - e * 0.6
-          );
-          flash.alpha = Math.max(0, (p - 0.6) / 0.4);
-        }
-        else if (t < (flyDur + holdDur + slamDur + impactDur) / total) {
-          // Phase 4: Impact frame
-          flyCard.x = slotStagePos.x;
-          flyCard.scale.set(fieldScale * 1.15, fieldScale * 0.85);
-          flyCard.y = slotStagePos.y + slamOvershoot * 0.1;
-          flash.alpha = 1;
-          app.stage.position.x = origStageX + (Math.random() - 0.5) * shakeIntensity * 2.5;
-          app.stage.position.y = origStageY + (Math.random() - 0.5) * shakeIntensity * 2.5;
-        }
-        else {
-          // Phase 5: Bounce back with decay
-          const p = (elapsed / total - (flyDur + holdDur + slamDur + impactDur) / total) / (bounceDur / total);
-          const decay = Math.pow(1 - p, 2);
+            flyCard.x = centerPos.x + (slotStagePos.x - centerPos.x) * e;
+            flyCard.y = centerPos.y - yLift * (1 - e) + (yLift + slamOvershoot) * e;
+            flyCard.scale.set(
+              fieldScale * 1.6 - e * 0.6,
+              fieldScale * 1.6 - e * 0.6
+            );
+            flash.alpha = Math.max(0, (p - 0.6) / 0.4);
+          }
+          else if (t < (flyDur + holdDur + slamDur + impactDur) / total) {
+            flyCard.x = slotStagePos.x;
+            flyCard.scale.set(fieldScale * 1.15, fieldScale * 0.85);
+            flyCard.y = slotStagePos.y + slamOvershoot * 0.1;
+            flash.alpha = 1;
+            app.stage.position.x = origStageX + (Math.random() - 0.5) * shakeIntensity * 2.5;
+            app.stage.position.y = origStageY + (Math.random() - 0.5) * shakeIntensity * 2.5;
+          }
+          else {
+            const p = (t - (flyDur + holdDur + slamDur + impactDur) / total) / (bounceDur / total);
+            const decay = Math.pow(1 - p, 2);
 
-          const angle = p * Math.PI * bounceCount * 2;
-          const scaleBounce = (1 + Math.sin(angle) * decay * 0.08);
-          flyCard.x = slotStagePos.x;
-          flyCard.y = slotStagePos.y;
-          flyCard.scale.set(fieldScale * scaleBounce, fieldScale * scaleBounce);
-
-          const shakeDecay = Math.pow(1 - Math.min(p, 1), 1.5) * (300 / bounceDur);
-          const effectiveShake = shakeIntensity * Math.max(0, shakeDecay);
-          app.stage.position.x = origStageX + (Math.random() - 0.5) * effectiveShake;
-          app.stage.position.y = origStageY + (Math.random() - 0.5) * effectiveShake;
-
-          flash.alpha = Math.max(0, 1 - p * 4);
-
-          if (p >= 1) {
-            app.stage.position.x = origStageX;
-            app.stage.position.y = origStageY;
+            const angle = p * Math.PI * bounceCount * 2;
+            const scaleBounce = (1 + Math.sin(angle) * decay * 0.08);
+            flyCard.x = slotStagePos.x;
             flyCard.y = slotStagePos.y;
-            flyCard.scale.set(fieldScale);
-            flash.alpha = 0;
-            if (flyCard.parent) flyCard.parent.removeChild(flyCard);
-            if (flash.parent) flash.parent.removeChild(flash);
-            resolve();
-            return;
-          }
-        }
-        requestAnimationFrame(tick);
-      };
+            flyCard.scale.set(fieldScale * scaleBounce, fieldScale * scaleBounce);
 
-      requestAnimationFrame(tick);
+            const shakeDecay = Math.pow(1 - Math.min(p, 1), 1.5) * (300 / bounceDur);
+            const effectiveShake = shakeIntensity * Math.max(0, shakeDecay);
+            app.stage.position.x = origStageX + (Math.random() - 0.5) * effectiveShake;
+            app.stage.position.y = origStageY + (Math.random() - 0.5) * effectiveShake;
+
+            flash.alpha = Math.max(0, 1 - p * 4);
+          }
+        },
+        onComplete: () => {
+          app.stage.position.x = origStageX;
+          app.stage.position.y = origStageY;
+          flyCard.y = slotStagePos.y;
+          flyCard.scale.set(fieldScale, fieldScale);
+          flash.alpha = 0;
+          if (flyCard.parent) flyCard.parent.removeChild(flyCard);
+          if (flash.parent) flash.parent.removeChild(flash);
+          resolve();
+        },
+      });
     });
   }
 }

@@ -1,4 +1,5 @@
-import { easeInOut, easeOutCubic, makeFlyCard, getDisplayTexture } from './utils';
+import { gsap } from 'gsap';
+import { makeFlyCard, getDisplayTexture } from './utils';
 
 export default class FlyToBottomDeckAnimation {
   static requires = ['app', 'zoneManager'];
@@ -7,16 +8,6 @@ export default class FlyToBottomDeckAnimation {
     this.ctx = ctx;
   }
 
-  /**
-   * Animate cards flying to the bottom of the deck.
-   * Deck lifts up, cards slide in and flip face-down, then deck drops.
-   *
-   * @param {number} pid - Player ID
-   * @param {Array<{card: object, stageX: number, stageY: number}>} cardEntries - Cards with their stage-local positions
-   * @param {object} [options] - Optional settings
-   * @param {number} [options.duration] - Animation duration in ms (default 1300)
-   * @returns {Promise<void>}
-   */
   async animate(pid, cardEntries, options = {}) {
     const { app, zoneManager } = this.ctx;
 
@@ -28,103 +19,154 @@ export default class FlyToBottomDeckAnimation {
     const deckCardH = Math.max(deckZone.height - 20, 100);
     const targetScale = deckCardH / cardH;
 
-    // Capture deck center BEFORE adding fly cards (bounds change with children)
     const deckCenterX = deckZone.width / 2;
     const deckCenterY = deckZone.height / 2;
 
-    // Grab existing deck sprites for lift animation
+    // Capture existing deck card sprites and their positions
     const deckSprites = deckZone.children.filter(c => c.isCardBack);
     const deckOrigPositions = deckSprites.map(s => ({ x: s.x, y: s.y }));
-    const liftAmount = 40;
+    const liftAmount = 50;
 
-    // Convert stage-local positions to deck zone local and create fly cards
-    const insertBeforeIdx = deckSprites.length ? deckZone.children.indexOf(deckSprites[0]) : deckZone.children.length;
+    // Hide real deck sprites during animation (ghost deck replaces them)
+    for (const ds of deckSprites) {
+      ds.alpha = 0;
+    }
 
+    // Position ghost deck at the real deck's global position
+    const deckGlobal = deckZone.toGlobal(new PIXI.Point(0, 0));
+    const stageDeckPos = app.stage.toLocal(deckGlobal);
+
+    // Create fly cards on stage first (so ghost deck renders on top)
     const flyCards = [];
     for (const entry of cardEntries) {
       const tex = getDisplayTexture(pid, entry.card);
       const flyCard = makeFlyCard(tex, entry.card, cardW * 0.95, cardH * 0.95);
 
-      // Convert stage-local → world → deck-zone local for correct positioning
-      const worldPos = app.stage.toGlobal(new PIXI.Point(entry.stageX, entry.stageY));
-      const lp = deckZone.toLocal(worldPos);
-
-      flyCard.x = lp.x;
-      flyCard.y = lp.y;
+      flyCard.x = entry.stageX;
+      flyCard.y = entry.stageY;
       flyCard.scale.set(targetScale * 1.5);
       flyCard.alpha = 1;
       flyCard.eventMode = 'none';
       flyCard.name = `bottom-deck-fly-${entry.card.cardId || entry.card}`;
 
       if (flyCard.parent) flyCard.parent.removeChild(flyCard);
-      deckZone.addChildAt(flyCard, insertBeforeIdx);
+      app.stage.addChild(flyCard);
 
       flyCards.push({
         flyCard,
         card: entry.card,
-        startX: lp.x,
-        startY: lp.y,
-        targetX: deckCenterX,
-        targetY: deckCenterY,
+        startX: entry.stageX,
+        startY: entry.stageY,
+        targetX: stageDeckPos.x + deckCenterX,
+        targetY: stageDeckPos.y + deckCenterY,
       });
     }
 
-    return new Promise((resolve) => {
-      const start = performance.now();
+    // --- Create ghost deck on stage AFTER fly cards (renders on top) ---
+    const ghostDeck = new PIXI.Container();
+    ghostDeck.name = 'ghost-deck';
+    app.stage.addChild(ghostDeck);
 
-      requestAnimationFrame(function tick(now) {
-        const elapsed = now - start;
-        const t = Math.min(elapsed / duration, 1);
+    // Create ghost deck sprites (matching ZoneRenderer._renderCardStack)
+    const backTexture = PIXI.Texture.from('assets/imgs/back.webp');
+    const ghostCardW = deckCardH * (5 / 7);
+    const ghostSprites = [];
+    for (let i = 0; i < deckSprites.length; i++) {
+      const gs = new PIXI.Sprite(backTexture);
+      gs.width = ghostCardW;
+      gs.height = deckCardH;
+      gs.isCardBack = true;
+      gs.x = deckOrigPositions[i].x;
+      gs.y = deckOrigPositions[i].y;
+      ghostDeck.addChild(gs);
+      ghostSprites.push(gs);
+    }
 
-        // Phase A: lift [0.4-0.55], hold until card arrives + buffer, drop [0.85-1]
-        let liftT;
-        if (t <= 0.4) liftT = 0;
-        else if (t <= 0.55) liftT = easeInOut((t - 0.4) / 0.15);
-        else if (t <= 0.85) liftT = 1;
-        else liftT = 1 - easeOutCubic((t - 0.85) / 0.15);
+    ghostDeck.position.copyFrom(stageDeckPos);
 
-        // Lift deck sprites
-        for (let i = 0; i < deckSprites.length; i++) {
-          const orig = deckOrigPositions[i];
-          if (orig && deckSprites[i].parent) {
-            deckSprites[i].y = orig.y - liftAmount * liftT;
+    // Deck lift proxy
+    const deckLift = { offset: 0 };
+
+    // --- Card fly animation ---
+    const flyPromises = flyCards.map((fc) => {
+      const sp = fc.flyCard;
+      const backTex = PIXI.Texture.from('assets/imgs/back.webp');
+
+      return new Promise((resolve) => {
+        const tl = gsap.timeline({ onComplete: resolve });
+
+        // Slide to deck center (completes at ~50% of total duration)
+        tl.to(sp, {
+          x: fc.targetX,
+          y: fc.targetY,
+          duration: (duration * 0.5) / 1000,
+          ease: 'power2.inOut',
+        });
+
+        // Flip: scale.x narrows to 0 then restores (done by ~40%)
+        tl.to(sp.scale, {
+          x: 0,
+          duration: (duration * 0.15) / 1000,
+          ease: 'power2.in',
+        }, 0);
+
+        // Swap texture to back at flip midpoint
+        tl.call(() => {
+          if (sp.children[0] && sp.children[0].texture) {
+            sp.children[0].texture = backTex;
           }
-        }
+        }, [], (duration * 0.15) / 1000);
 
-        // Selected cards: flip face-down, shrink, then slide to deck center
-        for (const fc of flyCards) {
-          const sp = fc.flyCard;
+        // Restore scale.x and shrink to target scale
+        tl.to(sp.scale, {
+          x: targetScale,
+          y: targetScale,
+          duration: (duration * 0.25) / 1000,
+          ease: 'power2.out',
+        }, (duration * 0.15) / 1000);
 
-          // Hide when deck starts dropping — card is already at deck position
-          if (t > 0.85) { sp.alpha = 0; continue; }
-
-          // Flip + shrink phase [0-0.5]
-          let flipT = Math.min(t / 0.5, 1);
-          const flipSign = 1 - 2 * flipT;
-          const shrinkScale = targetScale * 1.5 - flipT * (targetScale * 1.5 - targetScale);
-
-          // Swap to back texture at midpoint of flip
-          if (flipT > 0.5 && sp.children[0] && sp.children[0].texture) {
-            sp.children[0].texture = PIXI.Texture.from('assets/imgs/back.webp');
-          }
-
-          // Slide from start position to deck center
-          const slideEased = easeInOut(Math.min(t / 0.5, 1));
-          sp.x = fc.startX + (fc.targetX - fc.startX) * slideEased;
-          sp.y = fc.startY + (fc.targetY - fc.startY) * slideEased;
-
-          // Use absolute scale after flip completes so the back texture isn't mirrored
-          const finalScaleX = flipT >= 0.5 ? shrinkScale : flipSign * shrinkScale;
-          sp.scale.set(finalScaleX, shrinkScale);
-        }
-
-        if (t < 1) {
-          requestAnimationFrame(tick);
-        } else {
-          // Keep fly cards in deck zone so they remain visible after animation
-          resolve();
-        }
+        // Fade out near end
+        tl.to(sp, {
+          alpha: 0,
+          duration: (duration * 0.1) / 1000,
+          ease: 'power1.in',
+        }, (duration * 0.9) / 1000);
       });
     });
+
+    // --- Deck lift timeline ---
+    const deckTl = gsap.timeline();
+    deckTl.to(deckLift, {
+      offset: liftAmount,
+      duration: (duration * 0.2) / 1000,
+      ease: 'power2.out',
+    }, (duration * 0.25) / 1000);
+    deckTl.to(deckLift, {
+      offset: 0,
+      duration: (duration * 0.15) / 1000,
+      ease: 'power2.in',
+    }, (duration * 0.7) / 1000);
+
+    // Apply deck lift each frame via ticker
+    const tickerCb = () => {
+      for (let i = 0; i < ghostSprites.length; i++) {
+        ghostSprites[i].y = deckOrigPositions[i].y - deckLift.offset;
+      }
+    };
+    app.ticker.add(tickerCb);
+
+    // Wait for card fly to finish
+    await Promise.all(flyPromises);
+
+    // Cleanup
+    app.ticker.remove(tickerCb);
+    // Restore real deck sprites
+    for (const ds of deckSprites) {
+      ds.alpha = 1;
+    }
+    for (const fc of flyCards) {
+      if (fc.flyCard.parent) fc.flyCard.parent.removeChild(fc.flyCard);
+    }
+    if (ghostDeck.parent) ghostDeck.parent.removeChild(ghostDeck);
   }
 }

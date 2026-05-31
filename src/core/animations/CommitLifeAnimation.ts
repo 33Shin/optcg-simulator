@@ -1,4 +1,5 @@
-import { easeInOut, makeFlyCard } from './utils';
+import { gsap } from 'gsap';
+import { makeFlyCard } from './utils';
 
 export default class CommitLifeAnimation {
   static requires = ['zoneManager', 'app', 'zoneRenderer'];
@@ -46,7 +47,6 @@ export default class CommitLifeAnimation {
       };
 
       cards.forEach((card, cIdx) => {
-        // Card will land at index = existingLifeCount + cIdx
         const startLifeCount = player.life.length;
         const landIndex = startLifeCount + cIdx;
         const totalAfterAll = startLifeCount + cards.length;
@@ -60,7 +60,6 @@ export default class CommitLifeAnimation {
 
         const commitLifeFlyCard = makeFlyCard(backTexture, card, cardW, cardH);
         commitLifeFlyCard.name = `commitLifeCard_${pid}_${cIdx}`;
-        const start = performance.now() + cIdx * staggerMs;
 
         commitLifeFlyCard.position.set(fromPos.x, fromPos.y);
         commitLifeFlyCard.scale.set(startScale, startScale);
@@ -68,53 +67,53 @@ export default class CommitLifeAnimation {
         app.stage.addChild(commitLifeFlyCard);
 
         const animLen = flightDuration - fadeInMs;
+        const proxy = { t: 0 };
 
-        requestAnimationFrame(function tick(now) {
-          const elapsed = now - start;
-          if (elapsed < 0) {
-            requestAnimationFrame(tick);
-            return;
-          }
+        const tl = gsap.timeline({ delay: cIdx * staggerMs / 1000 });
 
-          if (elapsed < fadeInMs) {
-            commitLifeFlyCard.alpha = elapsed / fadeInMs;
-            commitLifeFlyCard.x = fromPos.x;
-            commitLifeFlyCard.y = fromPos.y;
-            commitLifeFlyCard.scale.set(startScale, startScale);
-            requestAnimationFrame(tick);
-            return;
-          }
+        // Fade in
+        tl.to(commitLifeFlyCard, {
+          alpha: 1,
+          duration: fadeInMs / 1000,
+          ease: 'none',
+        });
 
-          const rawT = Math.min((elapsed - fadeInMs) / animLen, 1);
-          const et = easeInOut(rawT);
+        // Fly with arc + scale interpolation
+        tl.to(proxy, {
+          t: 1,
+          duration: animLen / 1000,
+          ease: 'none',
+          onUpdate: () => {
+            const rawT = proxy.t;
+            const et = rawT < 0.5 ? 2 * rawT * rawT : 1 - Math.pow(-2 * rawT + 2, 2) / 2;
 
-          commitLifeFlyCard.x = fromPos.x + (toPos.x - fromPos.x) * et;
-          commitLifeFlyCard.y = fromPos.y + (toPos.y - fromPos.y) * et
-                        - 4 * arcHeight * rawT * (1 - rawT);
+            commitLifeFlyCard.x = fromPos.x + (toPos.x - fromPos.x) * et;
+            commitLifeFlyCard.y = fromPos.y + (toPos.y - fromPos.y) * et
+                              - 4 * arcHeight * rawT * (1 - rawT);
 
-          let s;
-          if (rawT <= 0.5) {
-            const ht = easeInOut(rawT / 0.5);
-            s = startScale + (peakScale - startScale) * ht;
-          } else {
-            const ht = easeInOut((rawT - 0.5) / 0.5);
-            s = peakScale + (landScale - peakScale) * ht;
-          }
-          commitLifeFlyCard.scale.set(s, s);
-          commitLifeFlyCard.alpha = 1;
-
-          if (rawT < 1) {
-            requestAnimationFrame(tick);
-          } else {
+            let s;
+            if (rawT <= 0.5) {
+              const ht = (rawT / 0.5) < 0.5
+                ? 2 * (rawT / 0.5) * (rawT / 0.5)
+                : 1 - Math.pow(-2 * (rawT / 0.5) + 2, 2) / 2;
+              s = startScale + (peakScale - startScale) * ht;
+            } else {
+              const ht = ((rawT - 0.5) / 0.5) < 0.5
+                ? 2 * ((rawT - 0.5) / 0.5) * ((rawT - 0.5) / 0.5)
+                : 1 - Math.pow(-2 * ((rawT - 0.5) / 0.5) + 2, 2) / 2;
+              s = peakScale + (landScale - peakScale) * ht;
+            }
+            commitLifeFlyCard.scale.set(s, s);
+          },
+          onComplete: () => {
             commitLifeFlyCard.x = toPos.x;
             commitLifeFlyCard.y = toPos.y;
             commitLifeFlyCard.scale.set(landScale, landScale);
             app.stage.removeChild(commitLifeFlyCard);
-            // Push card into life array now, then place sprite
             player.life.push(card);
             zoneRenderer.addLifeCardAt(pid, landIndex);
             done();
-          }
+          },
         });
       });
     });

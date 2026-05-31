@@ -10,20 +10,21 @@ class BattleManager {
     this.animManager = animManager;
   }
 
-  async resolveBattle(pid, attacker, target, targetPlayer, counterBoosts, onAfterResolve) {
+  async resolveBattle(pid, attacker, target, targetPlayer, counterBoosts) {
     const targetPid = targetPlayer === this.players[1] ? 1 : 2;
     const attackerZone = this.zoneManager.findZoneForCard(this.players, attacker);
     const targetZone = this.zoneManager.findZoneForCard(this.players, target);
 
+    // Mark attacker as rested before animation so _cleanupDone callback renders correct state
+    attacker.rested = true;
+
     // Continue attack animation from held state (after counter phase)
     await this.animManager.animateAttackContinueFromHeld();
 
-    attacker.rested = true;
-
-    return this._resolveBattleOutcome(pid, targetPid, attacker, target, targetPlayer, counterBoosts, onAfterResolve);
+    return this._resolveBattleOutcome(pid, targetPid, attacker, target, targetPlayer, counterBoosts);
   }
 
-  async _resolveBattleOutcome(pid, targetPid, attacker, target, targetPlayer, counterBoosts, onAfterResolve) {
+  async _resolveBattleOutcome(pid, targetPid, attacker, target, targetPlayer, counterBoosts) {
     const attackerZone = this.zoneManager.findZoneForCard(this.players, attacker);
     const targetZone = this.zoneManager.findZoneForCard(this.players, target);
 
@@ -96,8 +97,6 @@ class BattleManager {
     // Clean up counter boost tracker
     if (attacker._counterBoost) delete attacker._counterBoost;
     if (target._counterBoost) delete target._counterBoost;
-
-    onAfterResolve();
   }
 }
 

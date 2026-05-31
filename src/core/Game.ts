@@ -348,61 +348,58 @@ class Game {
         this.ui.actionButton._inBattle = true;
       }
 
-      try {
-        // Remove life card sprite immediately when damage starts
-        if (sourceZoneId === 'life') {
-          this.zoneRenderer.renderLifeFor(pid);
-        }
+      // Remove life card sprite immediately when damage starts
+      if (sourceZoneId === 'life') {
+        this.zoneRenderer.renderLifeFor(pid);
+      }
 
-        // Trigger phase: check if card has Trigger ability
-        const hasTrigger = damageCard && this.effectSystem.checkTrigger(damageCard, player);
+      // Trigger phase: check if card has Trigger ability
+      const hasTrigger = damageCard && this.effectSystem.checkTrigger(damageCard, player);
 
-        let playedTrigger = false;
+      let playedTrigger = false;
 
-        if (hasTrigger) {
-          if (pid === 1) {
-            // Human: animated fly-to-center + buttons + fly-to-hand on pass
-            const result = await this.animManager.damageTrigger.animate(pid, player, damageCard, true, sourceZoneId);
-            playedTrigger = result.played;
-            if (playedTrigger) {
-              // Execute trigger effect for free, send card to trash
-              this.effectSystem.resolveTrigger(damageCard, player);
-              player.trash.push(damageCard);
-              this.scheduleRender(() => this._renderAll());
-            } else {
-              // Pass: animation already inserted card and re-rendered hand
-            }
-          } else {
-            // AI: auto-decide, then play non-interactive animation
-            playedTrigger = this.ai.shouldPlayDamageTrigger(damageCard, player);
-            if (playedTrigger) {
-              this.effectSystem.resolveTrigger(damageCard, player);
-            }
-            await this.animManager.damageTrigger.animateAI(pid, player, damageCard, true, playedTrigger, sourceZoneId);
+      if (hasTrigger) {
+        if (pid === 1) {
+          // Human: animated fly-to-center + buttons + fly-to-hand on pass
+          const result = await this.animManager.damageTrigger.animate(pid, player, damageCard, true, sourceZoneId);
+          playedTrigger = result.played;
+          if (playedTrigger) {
+            // Execute trigger effect for free, send card to trash
+            this.effectSystem.resolveTrigger(damageCard, player);
+            player.trash.push(damageCard);
             this.scheduleRender(() => this._renderAll());
-          }
-        } else if (damageCard) {
-          // No trigger: animate fly-to-center then fly to hand
-          if (pid === 1) {
-            await this.animManager.damageTrigger.animate(pid, player, damageCard, false, sourceZoneId);
           } else {
-            await this.animManager.damageTrigger.animateAI(pid, player, damageCard, false, false, sourceZoneId);
-            this.scheduleRender(() => this._renderAll());
+            // Pass: animation already inserted card and re-rendered hand
           }
         } else {
-          // Deck empty, no damage card to animate
+          // AI: auto-decide, then play non-interactive animation
+          playedTrigger = this.ai.shouldPlayDamageTrigger(damageCard, player);
+          if (playedTrigger) {
+            this.effectSystem.resolveTrigger(damageCard, player);
+          }
+          await this.animManager.damageTrigger.animateAI(pid, player, damageCard, true, playedTrigger, sourceZoneId);
+          // Don't schedule render here — outer battle flow handles rendering via _afterBattleResolve()
         }
+      } else if (damageCard) {
+        // No trigger: animate fly-to-center then fly to hand
+        if (pid === 1) {
+          await this.animManager.damageTrigger.animate(pid, player, damageCard, false, sourceZoneId);
+        } else {
+          await this.animManager.damageTrigger.animateAI(pid, player, damageCard, false, false, sourceZoneId);
+          // Don't schedule render here — outer battle flow handles rendering via _afterBattleResolve()
+        }
+      } else {
+        // Deck empty, no damage card to animate
+      }
 
-        // Apply damage and check win condition
-        this.state.leaderDamage = this.state.leaderDamage || {};
+      // Apply damage and check win condition
+      this.state.leaderDamage = this.state.leaderDamage || {};
         this.state.leaderDamage[pid] = (this.state.leaderDamage[pid] || 0) + 1;
         this._checkWinCondition(pid);
-      } finally {
-        this._animating = false;
-        if (this.ui?.actionButton) {
-          this.ui.actionButton._inBattle = false;
-        }
-      }
+      // NOTE: do NOT reset _animating / _inBattle here — this handler fires from
+      // within the outer battle flow (AttackInteraction.resolveBattle) which owns
+      // those flags. Clearing them early creates a window where the action button
+      // becomes clickable and can fire endTurn() mid-battle.
     });
 
     this.eventBus.on('card:KO', () => {

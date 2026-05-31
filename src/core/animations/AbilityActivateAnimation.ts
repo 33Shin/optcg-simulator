@@ -1,3 +1,4 @@
+import { gsap } from 'gsap';
 import { makeFlyCard } from './utils';
 
 export default class AbilityActivateAnimation {
@@ -30,7 +31,6 @@ export default class AbilityActivateAnimation {
       ghost.alpha = 0;
       ghost.eventMode = 'none';
 
-      // Dark overlay
       const overlay = new PIXI.Graphics();
       overlay.name = 'abilityActivateOverlay';
       overlay.rect(0, 0, app.screen.width, app.screen.height)
@@ -39,18 +39,13 @@ export default class AbilityActivateAnimation {
       overlay.eventMode = 'none';
       app.stage.addChild(overlay);
 
-      // FX container for activation effects
       const fxContainer = new PIXI.Container();
       fxContainer.name = 'abilityActivateFx';
       fxContainer.eventMode = 'none';
       app.stage.addChild(fxContainer);
 
-      // Ghost card on top
       app.stage.addChild(ghost);
 
-      // --- Activation VFX elements ---
-
-      // Card glow filter
       const glowFilter = new PIXI.filters.GlowFilter({
         distance: 20,
         outerStrength: 2,
@@ -60,7 +55,6 @@ export default class AbilityActivateAnimation {
       });
       ghost.filters = [glowFilter];
 
-      // Center light spark
       const spark = new PIXI.Graphics();
       spark.name = 'abilityActivateSpark';
       spark.circle(0, 0, 12);
@@ -75,7 +69,6 @@ export default class AbilityActivateAnimation {
       spark.scale.set(0);
       fxContainer.addChild(spark);
 
-      // Light ring
       const ring = new PIXI.Graphics();
       ring.name = 'abilityActivateRing';
       ring.circle(0, 0, 50);
@@ -87,7 +80,6 @@ export default class AbilityActivateAnimation {
       ring.scale.set(0.2);
       fxContainer.addChild(ring);
 
-      // Shine sweep
       const shine = new PIXI.Graphics();
       shine.name = 'abilityActivateShine';
       shine.rect(-80, -500, 160, 1000);
@@ -102,7 +94,6 @@ export default class AbilityActivateAnimation {
       ];
       fxContainer.addChild(shine);
 
-      // Energy particles
       const particles = [];
       for (let i = 0; i < 40; i++) {
         const p = new PIXI.Graphics();
@@ -121,7 +112,6 @@ export default class AbilityActivateAnimation {
         particles.push(p);
       }
 
-      // Border activation glow
       const border = new PIXI.Graphics();
       border.name = 'abilityActivateBorder';
       border.roundRect(-250, -350, 500, 700, 24);
@@ -135,104 +125,90 @@ export default class AbilityActivateAnimation {
       ];
       fxContainer.addChild(border);
 
-      // --- Timing ---
       const flyInDur = 500;
       const vfxDur = 800;
       const fadeOutDur = 200;
       const total = flyInDur + vfxDur + fadeOutDur;
 
-      const start = performance.now();
+      const proxy = { t: 0 };
+      gsap.to(proxy, {
+        t: 1,
+        duration: total / 1000,
+        ease: 'none',
+        onUpdate: () => {
+          const t = proxy.t;
 
-      const tick = (now) => {
-        const elapsed = now - start;
-        const t = Math.min(elapsed / total, 1);
+          if (t < flyInDur / total) {
+            const p = t / (flyInDur / total);
+            const e = 1 - Math.pow(1 - p, 3);
 
-        if (t < flyInDur / total) {
-          // Phase 1: Fly in + scale up to 1.5x + fade in
-          const p = (elapsed / total) / (flyInDur / total);
-          const e = 1 - Math.pow(1 - p, 3);
+            ghost.x = slotStagePos.x + (centerX - slotStagePos.x) * e;
+            ghost.y = slotStagePos.y + (centerY - slotStagePos.y) * e;
+            ghost.alpha = Math.min(p / 0.1, 1);
+            ghost.scale.set(1 + e * 1.5, 1 + e * 1.5);
 
-          ghost.x = slotStagePos.x + (centerX - slotStagePos.x) * e;
-          ghost.y = slotStagePos.y + (centerY - slotStagePos.y) * e;
-          ghost.alpha = Math.min(p / 0.1, 1);
-          ghost.scale.set(1 + e * 1.5, 1 + e * 1.5);
+            overlay.alpha = e * 0.85;
 
-          overlay.alpha = e * 0.85;
+          } else if (t < (flyInDur + vfxDur) / total) {
+            const raw = (t - flyInDur / total) / (vfxDur / total);
+            const p = Math.min(raw, 1);
 
-        } else if (t < (flyInDur + vfxDur) / total) {
-          // Phase 2: Activation VFX
-          const raw = (elapsed / total - flyInDur / total) / (vfxDur / total);
-          const p = Math.min(raw, 1);
+            ghost.x = centerX;
+            ghost.y = centerY;
+            ghost.alpha = 1;
+            ghost.scale.set(2.5, 2.5);
 
-          ghost.x = centerX;
-          ghost.y = centerY;
-          ghost.alpha = 1;
-          ghost.scale.set(2.5, 2.5);
+            const sparkP = Math.min(p / 0.45, 1);
+            spark.alpha = Math.max(0, 1 - sparkP);
+            spark.scale.set(sparkP * 8);
 
-          // Spark: scale 0 -> 8, fade out
-          const sparkP = Math.min(p / 0.45, 1);
-          spark.alpha = Math.max(0, 1 - sparkP);
-          spark.scale.set(sparkP * 8);
+            const ringP = Math.min(p / 0.7, 1);
+            ring.alpha = Math.max(0, 1 - ringP);
+            ring.scale.set(0.2 + ringP * 2.8);
 
-          // Ring: scale 0.2 -> 3, fade out
-          const ringP = Math.min(p / 0.7, 1);
-          ring.alpha = Math.max(0, 1 - ringP);
-          ring.scale.set(0.2 + ringP * 2.8);
+            const shineP = Math.min(p / 0.45, 1);
+            shine.x = (centerX - 400) + shineP * 800;
+            shine.alpha = Math.max(0, 1 - shineP);
 
-          // Shine sweep: left to right
-          const shineP = Math.min(p / 0.45, 1);
-          shine.x = (centerX - 400) + shineP * 800;
-          shine.alpha = Math.max(0, 1 - shineP);
+            if (p < 0.15) {
+              border.alpha = p / 0.15;
+            } else {
+              border.alpha = Math.max(0, 1 - (p - 0.15) / 0.65);
+            }
 
-          // Border: flash in then fade
-          const borderP = Math.min(p / 0.8, 1);
-          if (p < 0.15) {
-            border.alpha = p / 0.15;
+            glowFilter.outerStrength = 2 + 6 * Math.sin(p * Math.PI);
+
+            const partP = Math.min(p / 0.6, 1);
+            for (const pt of particles) {
+              pt.x = pt.x + (pt._targetX - pt.x) * partP * 0.1;
+              pt.y = pt.y + (pt._targetY - pt.y) * partP * 0.1;
+              pt.alpha = Math.max(0, 1 - partP);
+            }
+
           } else {
-            border.alpha = Math.max(0, 1 - (p - 0.15) / 0.65);
+            const p = (t - (flyInDur + vfxDur) / total) / (fadeOutDur / total);
+            const e = p * p;
+
+            ghost.x = centerX;
+            ghost.y = centerY;
+            ghost.alpha = Math.max(0, 1 - e);
+            glowFilter.outerStrength = 2 * (1 - e);
+            ghost.scale.set(2.5, 2.5);
+
+            overlay.alpha = Math.max(0, 0.85 * (1 - e));
+            fxContainer.alpha = Math.max(0, 1 - e);
           }
-
-          // Glow filter pulse
-          glowFilter.outerStrength = 2 + 6 * Math.sin(p * Math.PI);
-
-          // Particles: spread out and fade
-          const partP = Math.min(p / 0.6, 1);
-          for (const pt of particles) {
-            pt.x = pt.x + (pt._targetX - pt.x) * partP * 0.1;
-            pt.y = pt.y + (pt._targetY - pt.y) * partP * 0.1;
-            pt.alpha = Math.max(0, 1 - partP);
-          }
-
-        } else {
-          // Phase 3: Fast fade out
-          const p = (elapsed / total - (flyInDur + vfxDur) / total) / (fadeOutDur / total);
-          const e = p * p;
-
-          ghost.x = centerX;
-          ghost.y = centerY;
-          ghost.alpha = Math.max(0, 1 - e);
-          glowFilter.outerStrength = 2 * (1 - e);
-          ghost.scale.set(2.5, 2.5);
-
-          overlay.alpha = Math.max(0, 0.85 * (1 - e));
-          fxContainer.alpha = Math.max(0, 1 - e);
-
-          if (p >= 1) {
-            ghost.alpha = 0;
-            overlay.alpha = 0;
-            fxContainer.alpha = 0;
-            if (ghost.parent) ghost.parent.removeChild(ghost);
-            if (overlay.parent) overlay.parent.removeChild(overlay);
-            if (fxContainer.parent) fxContainer.parent.removeChild(fxContainer);
-            resolve();
-            return;
-          }
-        }
-
-        requestAnimationFrame(tick);
-      };
-
-      requestAnimationFrame(tick);
+        },
+        onComplete: () => {
+          ghost.alpha = 0;
+          overlay.alpha = 0;
+          fxContainer.alpha = 0;
+          if (ghost.parent) ghost.parent.removeChild(ghost);
+          if (overlay.parent) overlay.parent.removeChild(overlay);
+          if (fxContainer.parent) fxContainer.parent.removeChild(fxContainer);
+          resolve();
+        },
+      });
     });
   }
 }

@@ -804,6 +804,16 @@ export default class CardPickAnimation {
       layoutIdx++;
     }
 
+    // Move selected card's fly card to top of stage so it renders above hand-return cards
+    if (selectedIdx >= 0) {
+      const sp = flyCards[selectedIdx].flyCard;
+      if (sp.parent) {
+        const p = sp.parent;
+        p.removeChild(sp);
+        p.addChild(sp);
+      }
+    }
+
     const overlay = flyCards[0].flyCard._overlay;
     const duration = 600;
 
