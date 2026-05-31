@@ -69,6 +69,7 @@ class AttackInteraction {
     }
     // Disable hand interaction during attack animation — relies on game._animating
     // guard in PlayCardInteraction.onHandCardDrag to reject drags.
+    let _atkRestoreSlot = null;
     try {
       // Find zones for attack animation
       const attackerZone = zoneManager.findZoneForCard(players, attacker);
@@ -78,11 +79,32 @@ class AttackInteraction {
       combatZone.show(attacker, target, '⚔ ATTACK DECLARED ⚔');
 
       // --- When Attacking: activate ability BEFORE lift/rotate animation ---
+      // (Run before removing attacker so the field sprite stays visible during ability VFX)
       if (attacker.effects && Array.isArray(attacker.effects) && attacker.effects.some(e => e.timing === 'whenAttacking')) {
         await animManager.abilityActivate.animate(pid, attacker, attackerZone);
         this.game.effectSystem.processWhenAttacking(attacker, players[pid]);
         combatZone.updatePower(attacker, target);
       }
+
+      // Remove attacker from field/leader data so any re-render (blocker, counter)
+      // won't recreate the original sprite.
+      const isAtkLeader = attacker.isLeader || attacker === players[pid].leader;
+      if (isAtkLeader) {
+        _atkRestoreSlot = 'leader';
+        players[pid].leader = null;
+      } else {
+        for (let i = 0; i < 5; i++) {
+          if (players[pid].field[i] === attacker) {
+            _atkRestoreSlot = i;
+            players[pid].field[i] = null;
+            break;
+          }
+        }
+      }
+
+      // Remove field sprite immediately after data removal so card disappears
+      const fieldSprite = attackerZone.children.find(c => c.isFieldSprite || c.isLeaderSprite);
+      if (fieldSprite && fieldSprite.parent) fieldSprite.parent.removeChild(fieldSprite);
 
       // --- Phase 1: Attacker card lifts up and rotates toward target ---
       await animManager.animateAttackLiftAndRotate(pid, attacker, attackerZone, target, targetZone);
@@ -119,9 +141,22 @@ class AttackInteraction {
       // --- Continue attack animation from held state, then resolve battle ---
       combatZone.stopTimer();
       combatZone.updatePhase('💥 BATTLE RESOLUTION 💥');
+      // Render attacker immediately when ghost is removed, so it appears at the same time
+      animManager.attack.setOnCleanupDone(() => {
+        // Restore attacker data and render right after ghost disappears
+        if (_atkRestoreSlot !== null) {
+          if (_atkRestoreSlot === 'leader') {
+            players[pid].leader = attacker;
+          } else {
+            players[pid].field[_atkRestoreSlot] = attacker;
+          }
+        }
+        this.game.fieldRenderer.renderFieldWithInteraction(1, (...args) => this.onFieldCardDrag(...args));
+        this.game.fieldRenderer.renderField(2);
+        this.game.fieldRenderer.renderLeaders();
+      });
       await battleManager.resolveBattle(
-        pid, attacker, target, targetPlayer, counterBoosts,
-        () => this._afterBattleResolve()
+        pid, attacker, target, targetPlayer, counterBoosts
       );
     } finally {
       // Clean up all pending timers before hiding combat zone
@@ -139,6 +174,14 @@ class AttackInteraction {
       }
       // Stop float animation on attacker fly card (leaks if battle errors mid-counter phase)
       this.game.animManager.attack._stopFloatAnimation();
+      // Restore attacker to field/leader data so _afterBattleResolve re-renders it
+      if (_atkRestoreSlot !== null) {
+        if (_atkRestoreSlot === 'leader') {
+          players[pid].leader = attacker;
+        } else {
+          players[pid].field[_atkRestoreSlot] = attacker;
+        }
+      }
       this._counterResolve = null;
       this._blockerResolve = null;
       this._committedCardIds = null;
@@ -156,6 +199,9 @@ class AttackInteraction {
       this.game.ui.restoreActionButton();
       this.game._animating = false;
     }
+    // Call _afterBattleResolve AFTER the finally block so the attacker has been
+    // restored to field/leader data before re-rendering.
+    this._afterBattleResolve();
   }
 
   /**
@@ -714,7 +760,7 @@ class AttackInteraction {
   _afterBattleResolve() {
     const { fieldRenderer, zoneRenderer } = this.game;
     this.game.actionState = 'idle';
-    this.game.ui.restoreActionButton();
+    // restoreActionButton() is called by the outer finally block, not here
     fieldRenderer.renderFieldWithInteraction(1, (...args) => this.onFieldCardDrag(...args));
     fieldRenderer.renderField(2);
     fieldRenderer.renderLeaders();

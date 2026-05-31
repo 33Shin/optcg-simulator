@@ -38,6 +38,12 @@ export default class AttackAnimation {
     this._attackAnimState = null;
     this._floatTicker = null;
     this._floatTime = 0;
+    this._onCleanupDone = null;
+  }
+
+  /** Set a callback to run immediately after attack animation cleanup (ghost removed). */
+  setOnCleanupDone(cb) {
+    this._onCleanupDone = cb;
   }
 
   _setupAttackAnimElements(pid, attacker, attackerZone, target, targetZone) {
@@ -65,6 +71,7 @@ export default class AttackAnimation {
     const attackerFlyCard = makeFlyCard(atkTexture, attacker, atkW, atkH);
     attackerFlyCard.name = 'attackerFlyCard';
     attackerFlyCard.position.copyFrom(atkPos);
+    attackerFlyCard.alpha = 0; // Start invisible, shown when lift animation begins
     app.stage.addChild(attackerFlyCard);
 
     // Power text overlay (matches CardRenderer.setPowerBadge style)
@@ -72,7 +79,7 @@ export default class AttackAnimation {
     const powerText = new PIXI.Text({
       text: String(effectivePower),
       style: {
-        fontSize: 30,
+        fontSize: isAtkLeader ? 45 : 30,
         fill: attacker.donAttached > 0 ? 0xffd700 : 0xffffff,
         stroke: { color: 0x000000, width: 4 },
         fontFamily: 'Russo One',
@@ -170,7 +177,6 @@ export default class AttackAnimation {
     const impactY = defPos.y - ny * (tgtH / 2);
 
     const attackerFieldSprite = attackerZone.children.find(c => c.isFieldSprite || c.isLeaderSprite);
-    if (attackerFieldSprite) attackerFieldSprite.visible = false;
 
     return {
       app, atkPos, defPos, pid, targetPid, isAtkLeader, isTgtLeader,
@@ -186,6 +192,7 @@ export default class AttackAnimation {
     if (!state) return null;
     this._attackAnimState = state;
 
+    // Ghost stays invisible until lift tick loop starts moving it
     const liftDur = 350;
     const start = performance.now();
 
@@ -195,9 +202,9 @@ export default class AttackAnimation {
         if (elapsed < liftDur) {
           const p = elapsed / liftDur;
           const e = easeOutCubic(p);
+          state.attackerFlyCard.alpha = 1;
           state.attackerFlyCard.scale.set(1 + 0.4 * e, 1 + 0.4 * e);
           state.attackerFlyCard.rotation = state.attackRotation * e;
-          state.attackerFlyCard.alpha = 1;
           requestAnimationFrame(tick);
         } else {
           state.attackerFlyCard.scale.set(1.4, 1.4);
@@ -543,12 +550,13 @@ export default class AttackAnimation {
 
     if (state.attackerFlyCard.parent) state.attackerFlyCard.parent.removeChild(state.attackerFlyCard);
 
-    if (state.attackerFieldSprite) {
-      state.attackerFieldSprite.rotation = Math.PI / 2;
-      state.attackerFieldSprite.visible = true;
-    }
-
     this._attackAnimState = null;
+
+    // Signal that cleanup is done so the attacker can be rendered immediately
+    if (this._onCleanupDone) {
+      this._onCleanupDone();
+      this._onCleanupDone = null;
+    }
   }
 
   // Legacy: full animation without counter phase interruption
