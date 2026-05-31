@@ -58,6 +58,7 @@ export default class AIPlayAnimation {
       app.stage.addChild(flyCard);
 
       const flash = new PIXI.Graphics();
+      flash.name = 'aiPlayFlash';
       flash.rect(0, 0, app.screen.width, app.screen.height)
             .fill({ color: 0xffffff, alpha: 0 });
       flash.eventMode = 'none';

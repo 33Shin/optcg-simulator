@@ -63,7 +63,7 @@ class GameBoard {
     zoneLabel.name = 'zoneLabel';
     zoneLabel.anchor.set(0.5);
     zoneLabel.position.set(container.width / 2, container.height / 2);
-    container.label = zoneLabel;
+    container.zoneLabel = zoneLabel;
     container.addChildAt(zoneLabel, 1);
     return zoneLabel;
   }

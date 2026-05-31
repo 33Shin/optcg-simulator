@@ -32,6 +32,7 @@ export default class AbilityActivateAnimation {
 
       // Dark overlay
       const overlay = new PIXI.Graphics();
+      overlay.name = 'abilityActivateOverlay';
       overlay.rect(0, 0, app.screen.width, app.screen.height)
              .fill({ color: 0x000000 });
       overlay.alpha = 0;
@@ -40,6 +41,7 @@ export default class AbilityActivateAnimation {
 
       // FX container for activation effects
       const fxContainer = new PIXI.Container();
+      fxContainer.name = 'abilityActivateFx';
       fxContainer.eventMode = 'none';
       app.stage.addChild(fxContainer);
 
@@ -60,6 +62,7 @@ export default class AbilityActivateAnimation {
 
       // Center light spark
       const spark = new PIXI.Graphics();
+      spark.name = 'abilityActivateSpark';
       spark.circle(0, 0, 12);
       spark.fill({ color: 0xffffff, alpha: 1 });
       spark.x = centerX;
@@ -74,6 +77,7 @@ export default class AbilityActivateAnimation {
 
       // Light ring
       const ring = new PIXI.Graphics();
+      ring.name = 'abilityActivateRing';
       ring.circle(0, 0, 50);
       ring.stroke({ width: 6, color: 0x00ffff, alpha: 1 });
       ring.x = centerX;
@@ -85,6 +89,7 @@ export default class AbilityActivateAnimation {
 
       // Shine sweep
       const shine = new PIXI.Graphics();
+      shine.name = 'abilityActivateShine';
       shine.rect(-80, -500, 160, 1000);
       shine.fill({ color: 0xffffff, alpha: 0.55 });
       shine.rotation = 0.4;
@@ -101,6 +106,7 @@ export default class AbilityActivateAnimation {
       const particles = [];
       for (let i = 0; i < 40; i++) {
         const p = new PIXI.Graphics();
+        p.name = `abilityActivateParticle_${i}`;
         p.circle(0, 0, 2 + Math.random() * 2);
         p.fill({ color: 0x00ffff });
         p.x = centerX;
@@ -117,6 +123,7 @@ export default class AbilityActivateAnimation {
 
       // Border activation glow
       const border = new PIXI.Graphics();
+      border.name = 'abilityActivateBorder';
       border.roundRect(-250, -350, 500, 700, 24);
       border.stroke({ width: 8, color: 0x00ffff, alpha: 1 });
       border.x = centerX;

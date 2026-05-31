@@ -207,6 +207,7 @@ class SelectionOverlay {
           fontFamily: 'Russo One',
         },
       });
+      text.name = `blockerBtnText_${i}`;
       text.anchor.set(0.5);
       text.position.set(bx + btnW / 2, startY + btnH / 2 - 8);
       text.eventMode = 'none';
@@ -222,6 +223,7 @@ class SelectionOverlay {
             fontFamily: 'Russo One',
           },
         });
+        sub.name = `blockerBtnSub_${i}`;
         sub.anchor.set(0.5);
         sub.position.set(bx + btnW / 2, startY + btnH / 2 + 10);
         sub.eventMode = 'none';

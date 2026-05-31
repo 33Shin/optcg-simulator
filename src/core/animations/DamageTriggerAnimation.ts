@@ -123,6 +123,7 @@ export default class DamageTriggerAnimation {
           align: 'center',
         },
       });
+      promptText.name = 'damageTriggerPromptAI';
       promptText.anchor.set(0.5, 1);
       promptText.position.set(app.screen.width / 2, flyCard.y - scaledCardH / 2 - 30);
       promptText.alpha = 0;
@@ -148,6 +149,7 @@ export default class DamageTriggerAnimation {
           align: 'center',
         },
       });
+      promptText.name = 'damageTriggerPromptAIPass';
       promptText.anchor.set(0.5, 1);
       promptText.position.set(app.screen.width / 2, flyCard.y - scaledCardH / 2 - 30);
       promptText.alpha = 0;
@@ -271,11 +273,13 @@ export default class DamageTriggerAnimation {
 
     // FX container for activation effects
     const fxContainer = new PIXI.Container();
+    fxContainer.name = 'damageTriggerFlipFx';
     fxContainer.eventMode = 'none';
     app.stage.addChild(fxContainer);
 
     // Light ring — golden
     const ring = new PIXI.Graphics();
+    ring.name = 'damageTriggerFlipRing';
     ring.circle(0, 0, 50);
     ring.stroke({ width: 6, color: 0xffd700, alpha: 1 });
     ring.x = centerX;
@@ -287,6 +291,7 @@ export default class DamageTriggerAnimation {
 
     // Sparkle burst
     const spark = new PIXI.Graphics();
+    spark.name = 'damageTriggerFlipSpark';
     spark.circle(0, 0, 12);
     spark.fill({ color: 0xffffff, alpha: 1 });
     spark.x = centerX;
@@ -300,6 +305,7 @@ export default class DamageTriggerAnimation {
     const particles = [];
     for (let i = 0; i < 30; i++) {
       const p = new PIXI.Graphics();
+      p.name = `damageTriggerFlipParticle_${i}`;
       p.circle(0, 0, 2 + Math.random() * 2);
       p.fill({ color: 0xffd700 });
       p.x = centerX;
@@ -532,6 +538,7 @@ export default class DamageTriggerAnimation {
   /** Create a dark overlay matching mulligan background style. */
   _createDarkOverlay(app) {
     const overlay = new PIXI.Graphics();
+    overlay.name = 'damageTriggerDarkOverlay';
     overlay.rect(0, 0, app.screen.width, app.screen.height)
            .fill({ color: 0x000000 });
     overlay.alpha = 0.7;
@@ -586,6 +593,7 @@ export default class DamageTriggerAnimation {
           align: 'center',
         },
       });
+      promptText.name = 'damageTriggerDecisionPrompt';
       promptText.anchor.set(0.5, 1);
       promptText.position.set(app.screen.width / 2, flyCard.y - scaledCardH / 2 - 30);
       promptText.alpha = 0;
@@ -611,6 +619,7 @@ export default class DamageTriggerAnimation {
 
       // Trigger button
       _triggerBg = new PIXI.Graphics();
+      _triggerBg.name = 'damageTriggerBtnBg';
       _triggerBg.roundRect(0, 0, btnW, btnH, 10)
               .fill({ color: hasTrigger ? 0x4CAF50 : 0x555555 });
       _triggerBg.position.set(startX, btnY);
@@ -624,6 +633,7 @@ export default class DamageTriggerAnimation {
           fontFamily: 'Russo One',
         },
       });
+      _triggerText.name = 'damageTriggerBtnText';
       _triggerText.anchor.set(0.5);
       _triggerText.position.set(startX + btnW / 2, btnY + btnH / 2);
       _triggerText.alpha = 0;
@@ -631,6 +641,7 @@ export default class DamageTriggerAnimation {
 
       // Pass button
       _passBg = new PIXI.Graphics();
+      _passBg.name = 'damagePassBtnBg';
       _passBg.roundRect(0, 0, btnW, btnH, 10)
             .fill({ color: 0xff9800 });
       _passBg.position.set(startX + btnW + 20, btnY);
@@ -640,12 +651,14 @@ export default class DamageTriggerAnimation {
         text: 'Pass',
         style: { fontSize: 18, fill: 0xffffff, fontFamily: 'Russo One' },
       });
+      _passText.name = 'damagePassBtnText';
       _passText.anchor.set(0.5);
       _passText.position.set(startX + btnW + 20 + btnW / 2, btnY + btnH / 2);
       _passText.alpha = 0;
 
       // Hover highlights
       _triggerHover = new PIXI.Graphics();
+      _triggerHover.name = 'damageTriggerBtnHover';
       _triggerHover.roundRect(0, 0, btnW, btnH, 10)
                  .fill({ color: 0xffffff });
       _triggerHover.position.set(startX, btnY);
@@ -653,6 +666,7 @@ export default class DamageTriggerAnimation {
       _triggerHover.eventMode = 'none';
 
       _passHover = new PIXI.Graphics();
+      _passHover.name = 'damagePassBtnHover';
       _passHover.roundRect(0, 0, btnW, btnH, 10)
                .fill({ color: 0xffffff });
       _passHover.position.set(startX + btnW + 20, btnY);

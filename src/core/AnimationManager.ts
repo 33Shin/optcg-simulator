@@ -129,6 +129,7 @@ class AnimationManager {
     const tokens = [];
     for (let i = 0; i < donCount; i++) {
       const sp = new PIXI.Sprite(donTexture);
+      sp.name = `donReturnToken_${i}`;
       sp.width = 28;
       sp.height = 40;
       sp.anchor.set(0.5);
@@ -376,6 +377,7 @@ class AnimationManager {
 
       // Dark overlay
       const overlay = new PIXI.Graphics();
+      overlay.name = 'blockerActivateOverlay';
       overlay.rect(0, 0, app.screen.width, app.screen.height)
              .fill({ color: 0x000000 });
       overlay.alpha = 0;
@@ -385,6 +387,7 @@ class AnimationManager {
 
       // FX container for activation effects
       const fxContainer = new PIXI.Container();
+      fxContainer.name = 'blockerActivateFx';
       fxContainer.eventMode = 'none';
       this._blockerActivateFxContainer = fxContainer;
       app.stage.addChild(fxContainer);
@@ -406,6 +409,7 @@ class AnimationManager {
 
       // Center light spark
       const spark = new PIXI.Graphics();
+      spark.name = 'blockerActivateSpark';
       spark.circle(0, 0, 12);
       spark.fill({ color: 0xffffff, alpha: 1 });
       spark.x = centerX;
@@ -420,6 +424,7 @@ class AnimationManager {
 
       // Light ring — orange
       const ring = new PIXI.Graphics();
+      ring.name = 'blockerActivateRing';
       ring.circle(0, 0, 50);
       ring.stroke({ width: 6, color: 0xff8800, alpha: 1 });
       ring.x = centerX;
@@ -431,6 +436,7 @@ class AnimationManager {
 
       // Shine sweep
       const shine = new PIXI.Graphics();
+      shine.name = 'blockerActivateShine';
       shine.rect(-80, -500, 160, 1000);
       shine.fill({ color: 0xffffff, alpha: 0.55 });
       shine.rotation = 0.4;
@@ -447,6 +453,7 @@ class AnimationManager {
       const particles = [];
       for (let i = 0; i < 40; i++) {
         const p = new PIXI.Graphics();
+        p.name = `blockerActivateParticle_${i}`;
         p.circle(0, 0, 2 + Math.random() * 2);
         p.fill({ color: 0xff8800 });
         p.x = centerX;
@@ -463,6 +470,7 @@ class AnimationManager {
 
       // Border activation glow — orange
       const border = new PIXI.Graphics();
+      border.name = 'blockerActivateBorder';
       border.roundRect(-250, -350, 500, 700, 24);
       border.stroke({ width: 8, color: 0xff8800, alpha: 1 });
       border.x = centerX;
@@ -634,6 +642,7 @@ class AnimationManager {
       ghost = this.ctx.renderer.render(cardRef, false, 1.0);
     } else {
       ghost = new PIXI.Container();
+      ghost.name = 'blockerRestGhostFallback';
       const child0 = sprite.children[0];
       if (child0 && child0.clone) {
         const copy = child0.clone();

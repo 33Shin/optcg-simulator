@@ -127,12 +127,14 @@ export function createPhaseZone(app, state, position, onEndTurn) {
 
   // ── Scanline overlay ──
   const scanlineGfx = new PIXI.Graphics();
+  scanlineGfx.name = 'phaseZoneScanline';
   scanlineGfx.roundRect(2, 2, ZONE_W - 4, ZONE_H - 4, 12)
     .fill({ color: 0x000000, alpha: 0 });
   container.addChild(scanlineGfx);
 
   // ── Inner border highlight ──
   const innerBorder = new PIXI.Graphics();
+  innerBorder.name = 'phaseZoneInnerBorder';
   innerBorder.roundRect(3, 3, ZONE_W - 6, ZONE_H - 6, 12)
     .stroke({ width: 0.5, color: COLORS.bgStrokeInner, alpha: 0.4 });
   container.addChild(innerBorder);
@@ -141,6 +143,7 @@ export function createPhaseZone(app, state, position, onEndTurn) {
   const cornerLen = 16;
   const cornerOff = 8;
   const cornerGfx = new PIXI.Graphics();
+  cornerGfx.name = 'phaseZoneCornerGfx';
   // Top-left
   cornerGfx.moveTo(cornerOff, cornerOff + cornerLen).lineTo(cornerOff, cornerOff).lineTo(cornerOff + cornerLen, cornerOff);
   // Top-right
@@ -164,6 +167,7 @@ export function createPhaseZone(app, state, position, onEndTurn) {
 
   // Track background groove
   const trackGroove = new PIXI.Graphics();
+  trackGroove.name = 'phaseZoneTrackGroove';
   trackGroove.moveTo(trackStartX, trackY)
     .lineTo(trackEndX, trackY)
     .stroke({ width: 6, color: COLORS.trackBg, alpha: 0.9 });
@@ -171,6 +175,7 @@ export function createPhaseZone(app, state, position, onEndTurn) {
 
   // Track center line
   const trackLine = new PIXI.Graphics();
+  trackLine.name = 'phaseZoneTrackLine';
   trackLine.moveTo(trackStartX, trackY)
     .lineTo(trackEndX, trackY)
     .stroke({ width: 1.5, color: COLORS.trackStroke, alpha: 0.6 });
@@ -178,11 +183,13 @@ export function createPhaseZone(app, state, position, onEndTurn) {
 
   // Progress glow line (wider, softer, behind solid)
   const trackProgressGlow = new PIXI.Graphics();
+  trackProgressGlow.name = 'phaseZoneTrackProgressGlow';
   trackProgressGlow.blendMode = 'add';
   container.addChild(trackProgressGlow);
 
   // Progress fill line
   const trackProgress = new PIXI.Graphics();
+  trackProgress.name = 'phaseZoneTrackProgress';
   container.addChild(trackProgress);
 
   // Particle pool for energy flow
@@ -191,6 +198,7 @@ export function createPhaseZone(app, state, position, onEndTurn) {
 
   // Particle render target
   const particleGfx = new PIXI.Graphics();
+  particleGfx.name = 'phaseZoneParticleGfx';
   container.addChild(particleGfx);
 
   // Phase nodes (hexagons)
@@ -203,6 +211,7 @@ export function createPhaseZone(app, state, position, onEndTurn) {
 
     // Glow behind node
     const glowGfx = new PIXI.Graphics();
+    glowGfx.name = `phaseNodeGlow_${i}`;
     container.addChildAt(glowGfx, 3);
     phaseNodeGlows.push(glowGfx);
 
@@ -221,6 +230,7 @@ export function createPhaseZone(app, state, position, onEndTurn) {
         fontFamily: 'Russo One',
       },
     });
+    pillText.name = `phasePillText_${i}`;
     pillText.anchor.set(0.5);
     pillText.position.set(nodeCx, trackY + nodeR + 9);
     container.addChild(pillText);
@@ -237,6 +247,7 @@ export function createPhaseZone(app, state, position, onEndTurn) {
       fontWeight: 'normal',
     },
   });
+  phaseIndicator.name = 'phaseIndicator';
   phaseIndicator.anchor.set(0.5);
   phaseIndicator.position.set(ZONE_W / 2, 13);
   container.addChild(phaseIndicator);

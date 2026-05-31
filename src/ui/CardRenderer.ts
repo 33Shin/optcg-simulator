@@ -6,6 +6,7 @@ class CardRenderer {
 
   render(card, faceDown = false, scale = 1) {
     const cardContainer = new PIXI.Container();
+    cardContainer.name = `card_${card.cardId || 'unknown'}`;
     cardContainer.cardId = card.cardId;
 
     if (faceDown) {

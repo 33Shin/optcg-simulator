@@ -304,9 +304,9 @@ class ZoneRenderer {
     if (!zone) return;
 
     const existing = zone.children.filter(c => c.isLifeCard);
-    if (zone.label) {
-      zone.label.style.text = `Life: ${p.life.length}`;
-      zone.label.dirty = true;
+    if (zone.zoneLabel) {
+      zone.zoneLabel.style.text = `Life: ${p.life.length}`;
+      zone.zoneLabel.dirty = true;
     }
 
     const targetCount = p.life.length;
@@ -369,9 +369,9 @@ class ZoneRenderer {
       all[i].y = toY;
     }
 
-    if (zone.label) {
-      zone.label.style.text = `Life: ${p.life.length}`;
-      zone.label.dirty = true;
+    if (zone.zoneLabel) {
+      zone.zoneLabel.style.text = `Life: ${p.life.length}`;
+      zone.zoneLabel.dirty = true;
     }
   }
 
@@ -384,9 +384,9 @@ class ZoneRenderer {
       const removed = oldCards.pop();
       zone.removeChild(removed);
     }
-    if (zone.label) {
-      zone.label.style.text = `Life: ${p.life.length}`;
-      zone.label.dirty = true;
+    if (zone.zoneLabel) {
+      zone.zoneLabel.style.text = `Life: ${p.life.length}`;
+      zone.zoneLabel.dirty = true;
     }
   }
 
@@ -398,6 +398,7 @@ class ZoneRenderer {
     if (!card) return;
 
     const sprite = this.renderer.render(card, false, 0.7);
+    sprite.name = `stageSprite_${pid}`;
     sprite.isStageSprite = true;
     sprite.cardRef = card;
     sprite.position.set(

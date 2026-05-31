@@ -132,11 +132,13 @@ class FieldRenderer {
   }
 
   _makeDONBadge(count) {
-    return new PIXI.Text({ text: String(count), style: {
+    const badge = new PIXI.Text({ text: String(count), style: {
       fontSize: 10,
       fill: 0xffd700,
       fontWeight: 'bold',
     }});
+    badge.name = 'donBadge';
+    return badge;
   }
 
 }

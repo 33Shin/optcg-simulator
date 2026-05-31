@@ -30,6 +30,7 @@ class CombatZone {
 
     // Background — covers phase bar completely
     const bg = new PIXI.Graphics();
+    bg.name = 'combatZoneBg';
     bg.roundRect(0, 0, this._totalW + PAD * 2 + 10, this._bgH + 10, 18)
       .fill({ color: 0x1a0a0a, alpha: 0.95 })
       .stroke({ width: 2, color: 0xff4422, alpha: 0.8 });
@@ -46,6 +47,7 @@ class CombatZone {
       text: attacker.name || 'Attacker',
       style: { fontSize: 16, fill: 0xff6644, fontFamily: 'Russo One', align: 'center' },
     });
+    atkName.name = 'combatAtkName';
     atkName.anchor.x = 0.5;
     atkName.position.set(centerX - sideGap, PAD + 2);
     this.container.addChild(atkName);
@@ -54,6 +56,7 @@ class CombatZone {
       text: `${attacker.currentPower || attacker.power || 0} PWR`,
       style: { fontSize: 18, fill: 0xffd700, fontFamily: 'Russo One', align: 'center' },
     });
+    atkPower.name = 'combatAtkPower';
     atkPower.anchor.x = 0.5;
     atkPower.position.set(centerX - sideGap, PAD + 22);
     this.container.addChild(atkPower);
@@ -65,6 +68,7 @@ class CombatZone {
       text: defender.name || 'Defender',
       style: { fontSize: 16, fill: 0x44aaff, fontFamily: 'Russo One', align: 'center' },
     });
+    defName.name = 'combatDefName';
     defName.anchor.x = 0.5;
     defName.position.set(centerX + sideGap, PAD + 2);
     this.container.addChild(defName);
@@ -73,6 +77,7 @@ class CombatZone {
       text: `${defender.currentPower || defender.power || 0} PWR`,
       style: { fontSize: 18, fill: 0xffd700, fontFamily: 'Russo One', align: 'center' },
     });
+    defPower.name = 'combatDefPower';
     defPower.anchor.x = 0.5;
     defPower.position.set(centerX + sideGap, PAD + 22);
     this.container.addChild(defPower);
@@ -84,6 +89,7 @@ class CombatZone {
       text: phase,
       style: { fontSize: 18, fill: 0xffffff, fontFamily: 'Russo One', align: 'center' },
     });
+    this._phaseLabel.name = 'combatPhaseLabel';
     this._phaseLabel.anchor.set(0.5);
     this._phaseLabel.position.set(centerX, centerY - 6);
     this.container.addChild(this._phaseLabel);
@@ -93,17 +99,20 @@ class CombatZone {
       text: '',
       style: { fontSize: 14, fill: 0xffaa44, fontFamily: 'Russo One', align: 'center' },
     });
+    this._timerLabel.name = 'combatTimerLabel';
     this._timerLabel.anchor.set(0.5);
     this._timerLabel.position.set(centerX, centerY + 16);
     this.container.addChild(this._timerLabel);
 
     // Divider lines — between side info and center phase label
     const divider1 = new PIXI.Graphics();
+    divider1.name = 'combatDivider1';
     divider1.moveTo(centerX - sideGap / 2, PAD).lineTo(centerX - sideGap / 2, this._bgH)
       .stroke({ width: 1, color: 0x444466, alpha: 0.5 });
     this.container.addChild(divider1);
 
     const divider2 = new PIXI.Graphics();
+    divider2.name = 'combatDivider2';
     divider2.moveTo(centerX + sideGap / 2, PAD).lineTo(centerX + sideGap / 2, this._bgH)
       .stroke({ width: 1, color: 0x444466, alpha: 0.5 });
     this.container.addChild(divider2);

@@ -145,6 +145,7 @@ export default class DONSlamAnimation {
 
     // Create DON ghost sprite on stage (not inside cost zone, to avoid expanding zone bounds)
     const donSlamSprite = new PIXI.Sprite(PIXI.Texture.from('assets/imgs/don.png'));
+    donSlamSprite.name = 'donSlamSpriteLightweight';
     donSlamSprite.anchor.set(0.5);
     donSlamSprite.width = tokenW;
     donSlamSprite.height = tokenW;
@@ -155,6 +156,7 @@ export default class DONSlamAnimation {
 
     // Flash overlay on stage
     const slamFlashGraphics = new PIXI.Graphics();
+    slamFlashGraphics.name = 'donSlamFlashLightweight';
     slamFlashGraphics.rect(0, 0, app.screen.width, app.screen.height)
           .fill({ color: 0xffd700, alpha: 0 });
     slamFlashGraphics.eventMode = 'none';

@@ -48,15 +48,19 @@ export function easeOutBack(t) {
 
 export function makeFlyCard(texture, card, cardW, cardH) {
   const flyCard = new PIXI.Container();
+  flyCard.name = `flyCard_${card.cardId || 'unknown'}`;
   if (texture) {
     const sp = new PIXI.Sprite(texture);
+    sp.name = 'flyCardSprite';
     sp.width = cardW; sp.height = cardH;
     flyCard.addChild(sp);
   } else {
     const bg = new PIXI.Graphics();
+    bg.name = 'flyCardFallbackBg';
     bg.roundRect(0, 0, cardW, cardH, 6).fill(0x333355);
     flyCard.addChild(bg);
     const nameText = new PIXI.Text({ text: card.name || '', style: { fontSize: 12, fill: 0xffffff, fontFamily: 'Russo One' }});
+    nameText.name = 'flyCardNameText';
     nameText.anchor.set(0.5, 0);
     nameText.position.set(cardW / 2, 5);
     flyCard.addChild(nameText);
@@ -68,16 +72,20 @@ export function makeFlyCard(texture, card, cardW, cardH) {
 export function createFlipCard(frontTexture, card, cardW, cardH) {
   const backTexture = PIXI.Texture.from('assets/imgs/back.webp');
   const container = new PIXI.Container();
+  container.name = `flipCard_${card.cardId || 'unknown'}`;
 
   const makeSprite = (tex) => {
     if (tex) {
       const sp = new PIXI.Sprite(tex);
+      sp.name = 'flipCardSprite';
       sp.width = cardW; sp.height = cardH;
       return sp;
     }
     const bg = new PIXI.Graphics();
+    bg.name = 'flipCardFallbackBg';
     bg.roundRect(0, 0, cardW, cardH, 6).fill(0x333355);
     const nameText = new PIXI.Text({ text: card.name || '', style: { fontSize: 12, fill: 0xffffff, fontFamily: 'Russo One' }});
+    nameText.name = 'flipCardNameText';
     nameText.anchor.set(0.5, 0);
     nameText.position.set(cardW / 2, 5);
     bg.addChild(nameText);

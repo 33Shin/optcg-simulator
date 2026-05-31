@@ -126,6 +126,7 @@ class UIComponents {
     }
     if (card.effect) lines.push(card.effect);
     const text = new PIXI.Text({ text: lines.join('\n\n'), style: { fontSize: 10, fill: 0xcccccc, lineHeight: 14 }});
+    text.name = 'fallbackCardInfo';
     text.position.set(885, 280);
     this.app.stage.addChild(text);
     this.infoTexts = this.infoTexts || [];

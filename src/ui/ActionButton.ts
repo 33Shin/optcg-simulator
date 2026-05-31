@@ -98,6 +98,7 @@ export function createActionButton(app, state, position, onEndTurn) {
       stroke: { color: 0x000000, width: 3 },
     },
   });
+  actionText.name = 'actionText';
   actionText.anchor.set(0.5);
   actionText.position.set(-btnRadius * 0.45, 0);
   container.addChild(actionText);
