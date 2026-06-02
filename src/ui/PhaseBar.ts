@@ -1,42 +1,35 @@
-const PHASES = ['Refresh', 'Draw', 'DON!!', 'Main', 'End'];
+const PHASES = ['REFRESH', 'DRAW', 'DON!!', 'MAIN', 'END'];
 
-const ZONE_W = 600;
+const ZONE_W = 476;
 const ZONE_H = 72;
 const PAD = 14;
 
 const COLORS = {
-  glow:          0x06061a,
   bg:            0x0a0a20,
   bgStroke:      0x1e2a4a,
   bgStrokeInner: 0x121830,
-  activeStroke:  0x60a5fa,
-  textActive:    0xffffff,
   phaseInactive: 0x0e1225,
   phaseInactiveText: 0x2a3456,
   phaseInactiveStroke: 0x1a2244,
-  phaseDone:     0x0a1e14,
-  phaseDoneText: 0x33cc77,
-  phaseDoneStroke: 0x22aa55,
   trackBg:       0x0c1020,
   trackStroke:   0x1a2244,
 };
 
-const PHASE_HIGHLIGHTS = {
-  Refresh: { fill: 0x061428, stroke: 0x2277cc, glow: 0x1155aa, particle: 0x4488dd },
-  Draw:    { fill: 0x061428, stroke: 0x2277cc, glow: 0x1155aa, particle: 0x4488dd },
-  'DON!!': { fill: 0x1e1000, stroke: 0xffaa00, glow: 0xcc8800, particle: 0xffcc44 },
-  Main:    { fill: 0x061a0e, stroke: 0x33cc55, glow: 0x22aa44, particle: 0x55ee77 },
-  End:     { fill: 0x1e0618, stroke: 0xdd3355, glow: 0xaa2244, particle: 0xff5577 },
+const PHASE_COLORS = {
+  REFRESH: 0x22cccc,
+  DRAW:    0x2277cc,
+  'DON!!': 0xffaa00,
+  MAIN:    0x33cc55,
+  END:     0xdd3355,
 };
 
 export function phaseToIndex(phase) {
   if (!phase) return -1;
-  const normalized = phase.charAt(0).toUpperCase() + phase.slice(1);
-  const mapped = normalized === 'Don' ? 'DON!!' : normalized;
+  const upper = phase.toUpperCase();
+  const mapped = upper === 'DON' ? 'DON!!' : upper;
   return PHASES.indexOf(mapped);
 }
 
-// ── Hexagon path ──
 function hexPath(g, cx, cy, r) {
   for (let i = 0; i < 6; i++) {
     const a = Math.PI / 3 * i - Math.PI / 6;
@@ -47,15 +40,22 @@ function hexPath(g, cx, cy, r) {
   g.closePath();
 }
 
-// ── Checkmark ──
-function checkmark(g, cx, cy, size) {
+function lerpColor(a, b, t) {
+  const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
+  const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return (r << 16) | (g << 8) | bl;
+}
+
+function checkmark(g, cx, cy, size, color) {
   g.moveTo(cx - size * 0.4, cy);
   g.lineTo(cx - size * 0.1, cy + size * 0.3);
   g.lineTo(cx + size * 0.45, cy - size * 0.25);
-  g.stroke({ width: 2.5, color: 0x33dd77, alpha: 0.9 });
+  g.stroke({ width: 2.5, color, alpha: 0.9 });
 }
 
-// ── Particle pool ──
 class ParticlePool {
   constructor(maxCount) {
     this.particles = [];
@@ -110,13 +110,6 @@ export function createPhaseZone(app, state, position, onEndTurn) {
   container.name = 'phaseZone';
   container.position.set(position.x, position.y);
 
-  // ── Outer glow ──
-  const glow = new PIXI.Graphics();
-  glow.name = 'phaseZoneGlow';
-  glow.roundRect(-8, -8, ZONE_W + 16, ZONE_H + 16, 18)
-    .fill({ color: COLORS.glow, alpha: 0.6 });
-  container.addChild(glow);
-
   // ── Background ──
   const bg = new PIXI.Graphics();
   bg.name = 'phaseZoneBg';
@@ -125,13 +118,6 @@ export function createPhaseZone(app, state, position, onEndTurn) {
     .stroke({ width: 1.5, color: COLORS.bgStroke, alpha: 0.8 });
   container.addChild(bg);
 
-  // ── Scanline overlay ──
-  const scanlineGfx = new PIXI.Graphics();
-  scanlineGfx.name = 'phaseZoneScanline';
-  scanlineGfx.roundRect(2, 2, ZONE_W - 4, ZONE_H - 4, 12)
-    .fill({ color: 0x000000, alpha: 0 });
-  container.addChild(scanlineGfx);
-
   // ── Inner border highlight ──
   const innerBorder = new PIXI.Graphics();
   innerBorder.name = 'phaseZoneInnerBorder';
@@ -139,29 +125,20 @@ export function createPhaseZone(app, state, position, onEndTurn) {
     .stroke({ width: 0.5, color: COLORS.bgStrokeInner, alpha: 0.4 });
   container.addChild(innerBorder);
 
-  // ── Corner accents ──
-  const cornerLen = 16;
-  const cornerOff = 8;
-  const cornerGfx = new PIXI.Graphics();
-  cornerGfx.name = 'phaseZoneCornerGfx';
-  // Top-left
-  cornerGfx.moveTo(cornerOff, cornerOff + cornerLen).lineTo(cornerOff, cornerOff).lineTo(cornerOff + cornerLen, cornerOff);
-  // Top-right
-  cornerGfx.moveTo(ZONE_W - cornerOff - cornerLen, cornerOff).lineTo(ZONE_W - cornerOff, cornerOff).lineTo(ZONE_W - cornerOff, cornerOff + cornerLen);
-  // Bottom-left
-  cornerGfx.moveTo(cornerOff, ZONE_H - cornerOff - cornerLen).lineTo(cornerOff, ZONE_H - cornerOff).lineTo(cornerOff + cornerLen, ZONE_H - cornerOff);
-  // Bottom-right
-  cornerGfx.moveTo(ZONE_W - cornerOff - cornerLen, ZONE_H - cornerOff).lineTo(ZONE_W - cornerOff, ZONE_H - cornerOff).lineTo(ZONE_W - cornerOff, ZONE_H - cornerOff - cornerLen);
-  cornerGfx.stroke({ width: 1.5, color: COLORS.bgStroke, alpha: 0.5 });
-  container.addChild(cornerGfx);
+  // ── Scanline overlay ──
+  const scanlineGfx = new PIXI.Graphics();
+  scanlineGfx.name = 'phaseZoneScanline';
+  scanlineGfx.roundRect(2, 2, ZONE_W - 4, ZONE_H - 4, 12)
+    .fill({ color: 0x000000, alpha: 0 });
+  container.addChild(scanlineGfx);
 
   // ── Phase track ──
-  const trackStartX = PAD + 14;
-  const trackEndX = ZONE_W - PAD - 14;
+  const trackPad = 40;
+  const trackStartX = trackPad;
+  const trackEndX = ZONE_W - trackPad;
   const trackWidth = trackEndX - trackStartX;
-  const trackY = ZONE_H / 2;
+  const trackY = ZONE_H / 2 - 8;
 
-  // Pill layout
   const nodeSpacing = trackWidth / (PHASES.length - 1);
   const nodeR = 13;
 
@@ -181,7 +158,7 @@ export function createPhaseZone(app, state, position, onEndTurn) {
     .stroke({ width: 1.5, color: COLORS.trackStroke, alpha: 0.6 });
   container.addChild(trackLine);
 
-  // Progress glow line (wider, softer, behind solid)
+  // Progress glow line
   const trackProgressGlow = new PIXI.Graphics();
   trackProgressGlow.name = 'phaseZoneTrackProgressGlow';
   trackProgressGlow.blendMode = 'add';
@@ -192,16 +169,15 @@ export function createPhaseZone(app, state, position, onEndTurn) {
   trackProgress.name = 'phaseZoneTrackProgress';
   container.addChild(trackProgress);
 
-  // Particle pool for energy flow
+  // Particle pool
   const particles = new ParticlePool(12);
   particles.reset(trackStartX, trackEndX, trackY);
 
-  // Particle render target
   const particleGfx = new PIXI.Graphics();
   particleGfx.name = 'phaseZoneParticleGfx';
   container.addChild(particleGfx);
 
-  // Phase nodes (hexagons)
+  // Phase nodes
   const phaseNodes = [];
   const phaseNodeGlows = [];
   const phaseTexts = [];
@@ -209,48 +185,30 @@ export function createPhaseZone(app, state, position, onEndTurn) {
   for (let i = 0; i < PHASES.length; i++) {
     const nodeCx = trackStartX + nodeSpacing * i;
 
-    // Glow behind node
     const glowGfx = new PIXI.Graphics();
     glowGfx.name = `phaseNodeGlow_${i}`;
     container.addChildAt(glowGfx, 3);
     phaseNodeGlows.push(glowGfx);
 
-    // Node body
     const node = new PIXI.Graphics();
     node.name = `phaseNode_${i}`;
     container.addChild(node);
     phaseNodes.push(node);
 
-    // Text label
     const pillText = new PIXI.Text({
       text: PHASES[i],
       style: {
-        fontSize: 9,
+        fontSize: 12,
         fill: COLORS.phaseInactiveText,
         fontFamily: 'Russo One',
       },
     });
     pillText.name = `phasePillText_${i}`;
     pillText.anchor.set(0.5);
-    pillText.position.set(nodeCx, trackY + nodeR + 9);
+    pillText.position.set(nodeCx, trackY + nodeR + 14);
     container.addChild(pillText);
     phaseTexts.push(pillText);
   }
-
-  // Central phase indicator (large text showing current phase)
-  const phaseIndicator = new PIXI.Text({
-    text: '',
-    style: {
-      fontSize: 11,
-      fill: 0x60a5fa,
-      fontFamily: 'Russo One',
-      fontWeight: 'normal',
-    },
-  });
-  phaseIndicator.name = 'phaseIndicator';
-  phaseIndicator.anchor.set(0.5);
-  phaseIndicator.position.set(ZONE_W / 2, 13);
-  container.addChild(phaseIndicator);
 
   container.eventMode = 'static';
   container.cursor = 'default';
@@ -259,7 +217,6 @@ export function createPhaseZone(app, state, position, onEndTurn) {
   container.phaseNodes = phaseNodes;
   container.phaseNodeGlows = phaseNodeGlows;
   container.phaseTexts = phaseTexts;
-  container.phaseIndicator = phaseIndicator;
   container.trackProgress = trackProgress;
   container.trackProgressGlow = trackProgressGlow;
   container.trackStartX = trackStartX;
@@ -270,8 +227,6 @@ export function createPhaseZone(app, state, position, onEndTurn) {
   container.particles = particles;
   container.particleGfx = particleGfx;
   container.scanlineGfx = scanlineGfx;
-
-  app.stage.addChild(container);
 
   let _scanPhase = 0;
   let _pulsePhase = 0;
@@ -285,19 +240,19 @@ export function createPhaseZone(app, state, position, onEndTurn) {
     _pulsePhase += 0.04;
     _scanPhase += 0.015;
 
-    // Scanline sweep
+    // Scanline sweep (phase panel only)
     const scanY = (Math.sin(_scanPhase) * 0.5 + 0.5) * ZONE_H;
     const currentPhaseIdx = phaseToIndex(state?.currentPhase);
-    const hl = currentPhaseIdx >= 0 ? PHASE_HIGHLIGHTS[PHASES[currentPhaseIdx]] : null;
+    const color = currentPhaseIdx >= 0 ? PHASE_COLORS[PHASES[currentPhaseIdx]] : 0x334466;
     container.scanlineGfx.clear();
-    container.scanlineGfx.rect(0, scanY - 1, ZONE_W, 2)
-      .fill({ color: hl ? hl.stroke : 0x334466, alpha: 0.06 });
+    container.scanlineGfx.rect(2, scanY - 1, ZONE_W - 4, 2)
+      .fill({ color, alpha: 0.06 });
 
     // Particle update and render
     container.particles.update(dt);
     container.particles.render(container.particleGfx, container.trackStartX,
       container.trackStartX + container.nodeSpacing * Math.max(currentPhaseIdx, 0),
-      container.trackY, hl ? hl.particle : 0x4488dd);
+      container.trackY, color);
 
     // Active node pulse
     const pulse = 0.85 + 0.15 * Math.sin(_pulsePhase * 1.2);
@@ -305,7 +260,7 @@ export function createPhaseZone(app, state, position, onEndTurn) {
       const nodeCx = container.trackStartX + container.nodeSpacing * currentPhaseIdx;
       container.phaseNodeGlows[currentPhaseIdx].clear();
       container.phaseNodeGlows[currentPhaseIdx].circle(nodeCx, container.trackY, container.nodeR + 10)
-        .fill({ color: hl.glow, alpha: 0.3 * pulse });
+        .fill({ color, alpha: 0.3 * pulse });
     }
   };
   app.ticker.add(_phaseTicker);
@@ -326,33 +281,26 @@ export function updatePhaseZone(zone, state, turnManager) {
     const glow = zone.phaseNodeGlows[i];
     const nodeCx = zone.trackStartX + zone.nodeSpacing * i;
     const nodeR = zone.nodeR;
+    const c = PHASE_COLORS[PHASES[i]];
 
     if (i === currentPhaseIdx) {
       // ── Active phase ──
-      const hl = PHASE_HIGHLIGHTS[PHASES[i]];
       const pulse = 0.85 + 0.15 * Math.sin(Date.now() * 0.004);
 
-      // Glow
       glow.clear();
       glow.circle(nodeCx, zone.trackY, nodeR + 10)
-        .fill({ color: hl.glow, alpha: 0.3 * pulse });
+        .fill({ color: c, alpha: 0.3 * pulse });
 
-      // Node body
       node.clear();
       hexPath(node, nodeCx, zone.trackY, nodeR);
-      node.fill({ color: hl.fill, alpha: 1 });
-      node.stroke({ width: 2, color: hl.stroke, alpha: 0.9 });
+      node.fill({ color: COLORS.phaseInactive, alpha: 1 });
+      node.stroke({ width: 2, color: c, alpha: 0.9 });
 
-      // Inner hex
       hexPath(node, nodeCx, zone.trackY, nodeR - 3);
-      node.stroke({ width: 0.5, color: hl.stroke, alpha: 0.3 });
+      node.stroke({ width: 0.5, color: c, alpha: 0.3 });
 
       text.style.fill = 0xffffff;
-      text.style.fontSize = 10;
-
-      // Update central indicator
-      zone.phaseIndicator.text = PHASES[i];
-      zone.phaseIndicator.style.fill = hl.stroke;
+      text.style.fontSize = 13;
 
     } else if (i < currentPhaseIdx) {
       // ── Completed phase ──
@@ -360,14 +308,13 @@ export function updatePhaseZone(zone, state, turnManager) {
 
       node.clear();
       hexPath(node, nodeCx, zone.trackY, nodeR);
-      node.fill({ color: COLORS.phaseDone, alpha: 0.9 });
-      node.stroke({ width: 1.5, color: COLORS.phaseDoneStroke, alpha: 0.7 });
+      node.fill({ color: COLORS.phaseInactive, alpha: 0.8 });
+      node.stroke({ width: 1.5, color: c, alpha: 0.5 });
 
-      // Checkmark
-      checkmark(node, nodeCx, zone.trackY, 10);
+      checkmark(node, nodeCx, zone.trackY, 10, c);
 
-      text.style.fill = COLORS.phaseDoneText;
-      text.style.fontSize = 9;
+      text.style.fill = c;
+      text.style.fontSize = 12;
 
     } else {
       // ── Upcoming phase ──
@@ -376,32 +323,44 @@ export function updatePhaseZone(zone, state, turnManager) {
       node.clear();
       hexPath(node, nodeCx, zone.trackY, nodeR);
       node.fill({ color: COLORS.phaseInactive, alpha: 0.8 });
-      node.stroke({ width: 1, color: COLORS.phaseInactiveStroke, alpha: 0.5 });
+      node.stroke({ width: 1, color: c, alpha: 0.25 });
 
       text.style.fill = COLORS.phaseInactiveText;
-      text.style.fontSize = 9;
+      text.style.fontSize = 12;
     }
   }
 
-  // ── Progress line ──
+  // ── Progress line (gradient per segment) ──
   zone.trackProgress.clear();
   zone.trackProgressGlow.clear();
 
   if (currentPhaseIdx >= 0) {
-    const hl = PHASE_HIGHLIGHTS[PHASES[currentPhaseIdx]];
+    for (let s = 0; s <= currentPhaseIdx; s++) {
+      const xFrom = zone.trackStartX + zone.nodeSpacing * Math.max(s - 1, 0);
+      const xTo   = zone.trackStartX + zone.nodeSpacing * s;
+      const cFrom = s > 0 ? PHASE_COLORS[PHASES[s - 1]] : PHASE_COLORS[PHASES[s]];
+      const cTo   = PHASE_COLORS[PHASES[s]];
+      const steps = 8;
+
+      for (let k = 0; k < steps; k++) {
+        const t1 = k / steps;
+        const t2 = (k + 1) / steps;
+        const sx = xFrom + (xTo - xFrom) * t1;
+        const ex = xFrom + (xTo - xFrom) * t2;
+        const mid = (t1 + t2) / 2;
+        const c = lerpColor(cFrom, cTo, mid);
+
+        zone.trackProgressGlow.moveTo(sx, zone.trackY)
+          .lineTo(ex, zone.trackY)
+          .stroke({ width: 6, color: c, alpha: 0.2 });
+
+        zone.trackProgress.moveTo(sx, zone.trackY)
+          .lineTo(ex, zone.trackY)
+          .stroke({ width: 2, color: c, alpha: 0.6 });
+      }
+    }
+
     const progressEnd = zone.trackStartX + zone.nodeSpacing * currentPhaseIdx;
-
-    // Glow (wider, softer)
-    zone.trackProgressGlow.moveTo(zone.trackStartX, zone.trackY)
-      .lineTo(progressEnd, zone.trackY)
-      .stroke({ width: 6, color: hl.glow, alpha: 0.2 });
-
-    // Solid line
-    zone.trackProgress.moveTo(zone.trackStartX, zone.trackY)
-      .lineTo(progressEnd, zone.trackY)
-      .stroke({ width: 2, color: hl.stroke, alpha: 0.6 });
-
-    // Reset particles to flow to current phase
     zone.particles.reset(zone.trackStartX, progressEnd, zone.trackY);
   }
 }

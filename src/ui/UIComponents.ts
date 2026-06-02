@@ -1,9 +1,14 @@
 import { highlightKeywords } from './KeywordHighlighter';
 import { buildCardInfoHtml, buildPlayButtonHtml } from './CardInfoPanel';
 import { createPhaseZone, updatePhaseZone, setPhaseZoneCallbacks } from './PhaseBar';
+import { createTurnInfoPanel, updateTurnInfoPanel } from './TurnInfoPanel';
+import { createCenterZone } from './CenterZone';
 import { createActionButton, updateActionButton, setActionButtonCallback } from './ActionButton';
 
-const PHASE_POSITION = { x: 302, y: 360 };
+const PHASE_POSITION = { x: 275, y: 360 };
+const ZONE_W_PHASE = 476;
+const GAP_PHASE_TURN = 14;
+const TURN_PANEL_W = 160;
 
 class UIComponents {
   constructor(app, state, gameRef) {
@@ -13,7 +18,18 @@ class UIComponents {
   }
 
   init() {
-    this.phaseZone = createPhaseZone(this.app, this.state, PHASE_POSITION);
+    this.centerZone = createCenterZone(this.app, this.state, PHASE_POSITION);
+
+    this.phaseZone = createPhaseZone(this.app, this.state, { x: 0, y: 0 });
+    this.centerZone.addChild(this.phaseZone);
+
+    const turnPanelPos = {
+      x: ZONE_W_PHASE + GAP_PHASE_TURN,
+      y: 0,
+    };
+    this.turnInfoPanel = createTurnInfoPanel(this.app, this.state, turnPanelPos);
+    this.centerZone.addChild(this.turnInfoPanel);
+
     const btnPos = {
       x: this.app.screen.width,
       y: PHASE_POSITION.y + 36,
@@ -39,6 +55,9 @@ class UIComponents {
     const turnManager = this._gameRef ? this._gameRef.turnManager : null;
     if (this.phaseZone) {
       updatePhaseZone(this.phaseZone, this.state, turnManager);
+    }
+    if (this.turnInfoPanel) {
+      updateTurnInfoPanel(this.turnInfoPanel, this.state);
     }
     if (this.actionButton) {
       updateActionButton(this.actionButton, this.state, turnManager);
@@ -68,6 +87,9 @@ class UIComponents {
 
   updateTurn() {
     this.updateActionBtn();
+    if (this.turnInfoPanel) {
+      updateTurnInfoPanel(this.turnInfoPanel, this.state);
+    }
   }
 
   showCardInfo(card, pid) {
