@@ -42,7 +42,7 @@ export default class DONRestAnimation {
       return;
     }
 
-    const dur = 0.25;
+    const dur = 0.15;
 
     await new Promise((resolve) => {
       const proxy = { t: 0 };
