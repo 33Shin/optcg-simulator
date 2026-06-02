@@ -65,8 +65,8 @@ export default class DONSlamAnimation {
     const origStageY = app.stage.position.y;
 
     // Animation phases: fade-in with scale down, then shake
-    const fadeInDur = 80;
-    const shakeDur = 120;
+    const fadeInDur = 150;
+    const shakeDur = 200;
     const total = fadeInDur + shakeDur;
 
     await Animator.animate({
@@ -165,9 +165,9 @@ export default class DONSlamAnimation {
     const origStageX = app.stage.position.x;
     const origStageY = app.stage.position.y;
 
-    const dropDur = 500;
-    const impactDur = 160;
-    const bounceDur = 600;
+    const dropDur = 1000;
+    const impactDur = 320;
+    const bounceDur = 1200;
     const total = dropDur + impactDur + bounceDur;
 
     await Animator.animate({
