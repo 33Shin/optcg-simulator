@@ -32,6 +32,7 @@ class TurnManager {
     let phase = this.state.currentPhase;
 
     while (PHASES.indexOf(phase) < PHASES.length - 1) {
+      if (this.state.gameOver) break;
       this.state.currentPhase = phase;
       this.eventBus.emit('phase:change', { phase, player: this.state.currentPlayer });
 
@@ -161,7 +162,7 @@ class TurnManager {
   }
 
   get canAct() {
-    return !this.phaseLocked && this.mainPhaseReady && this.state.currentPhase === 'main';
+    return !this.state.gameOver && !this.phaseLocked && this.mainPhaseReady && this.state.currentPhase === 'main';
   }
 
   get canPlayerAct() {

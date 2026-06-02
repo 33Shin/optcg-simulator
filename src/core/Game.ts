@@ -21,6 +21,7 @@ import AttachDONInteraction from '../core/interactions/AttachDONInteraction';
 import AttackInteraction from '../core/interactions/AttackInteraction';
 import CounterPhaseOverlay from '../ui/CounterPhaseOverlay';
 import CombatZone from '../ui/CombatZone';
+import GameOverOverlay from '../ui/GameOverOverlay';
 
 class Game {
   constructor({ app, eventBus, p1Deck, p2Deck }) {
@@ -83,6 +84,9 @@ class Game {
 
     // Combat zone overlay
     this.combatZone = new CombatZone(app);
+
+    // Game over overlay
+    this.gameOverOverlay = new GameOverOverlay(app, this.renderer, this.players, this.zoneManager);
     this.battleManager = new BattleManager(
       this.players, this.donSystem, this.combatSystem,
       this.effectSystem, this.ui, this.fieldRenderer,
@@ -301,7 +305,22 @@ class Game {
       });
     });
 
+    this.eventBus.on('deck:empty', (data) => {
+      const pid = data.player;
+      this.state.gameOver = true;
+      this.state.winner = pid === 1 ? 2 : 1;
+      this.ui.updatePhase();
+      this.cleanup();
+      this.animManager.cancelBlockerActivate();
+      this.animManager.cancelBlockerRest();
+      this.dragManager.cancel();
+      this.renderBatcher.cancel();
+      this.combatZone.hide();
+      this.gameOverOverlay.show(this.state.winner);
+    });
+
     this.eventBus.on('main:ready', () => {
+      if (this.state.gameOver) return;
       this._bindHandInteraction(1);
       this._bindFieldInteraction(1);
       this._bindLeaderInteraction(1);
@@ -393,9 +412,14 @@ class Game {
       }
 
       // Apply damage and check win condition
+      // Only count damage when there are no Life cards left (source === 'deck').
+      // Losing the last Life card does NOT make you lose — only taking damage
+      // with 0 Life cards remaining counts.
       this.state.leaderDamage = this.state.leaderDamage || {};
+      if (sourceZoneId === 'deck') {
         this.state.leaderDamage[pid] = (this.state.leaderDamage[pid] || 0) + 1;
-        this._checkWinCondition(pid);
+      }
+      this._checkWinCondition(pid);
       // NOTE: do NOT reset _animating / _inBattle here — this handler fires from
       // within the outer battle flow (AttackInteraction.resolveBattle) which owns
       // those flags. Clearing them early creates a window where the action button
@@ -589,9 +613,8 @@ class Game {
   // --- Win condition ---
 
   _checkWinCondition(damagedPid) {
-    const leaderLife = this.players[damagedPid].leader.life;
     const damage = (this.state.leaderDamage || {})[damagedPid] || 0;
-    if (damage >= leaderLife) {
+    if (damage > 0) {
       this.state.gameOver = true;
       this.state.winner = damagedPid === 1 ? 2 : 1;
       this.ui.updatePhase();
@@ -601,10 +624,7 @@ class Game {
       this.dragManager.cancel();
       this.renderBatcher.cancel();
       this.combatZone.hide();
-      this.ui.showConfirm(
-        `Player ${this.state.winner} wins! Click Yes to restart.`,
-        (result) => { if (result) location.reload(); }
-      );
+      this.gameOverOverlay.show(this.state.winner);
     }
   }
 }

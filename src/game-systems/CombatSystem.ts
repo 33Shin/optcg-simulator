@@ -31,15 +31,13 @@ class CombatSystem {
   }
 
   async damageLeader(player) {
-    let card, source;
     if (player.life.length > 0) {
-      card = player.life.pop();
-      source = 'life';
+      const card = player.life.pop();
+      await this.eventBus.emitAsync('leader:damage', { player, damageCard: card, source: 'life' });
     } else {
-      card = player.deck.cards.length > 0 ? player.deck.draw() : null;
-      source = 'deck';
+      // Life is 0 — no card to absorb damage, game should end
+      await this.eventBus.emitAsync('leader:damage', { player, damageCard: null, source: 'deck' });
     }
-    await this.eventBus.emitAsync('leader:damage', { player, damageCard: card, source });
   }
 }
 
