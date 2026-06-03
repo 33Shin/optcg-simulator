@@ -1,5 +1,7 @@
 import { Animator } from './Animator';
-import { easeOutQuad, isPointInZone } from './animations/utils';
+import SnapBackAnimation from './animations/SnapBackAnimation';
+import FadeOutGhostAnimation from './animations/FadeOutGhostAnimation';
+import { isPointInZone } from './animations/utils';
 
 class DragManager {
   constructor(app, gameBoard, board, renderer, players, zoneManager, animManager, isAnimating) {
@@ -11,6 +13,8 @@ class DragManager {
     this.zoneManager = zoneManager;
     this.animManager = animManager;
     this._isAnimating = isAnimating || (() => false);
+    this._snapBackAnim = new SnapBackAnimation({ app });
+    this._fadeOutGhostAnim = new FadeOutGhostAnimation({});
 
     // Internal state
     this._dragging = false;
@@ -712,25 +716,12 @@ class DragManager {
       return;
     }
 
-    const endX = this._snapBackPos.x - ghost.dragW / 2;
-    const endY = this._snapBackPos.y - ghost.dragH / 2;
-
-    Animator.animate({
-      duration: 200,
-      easing: 'easeOutQuad',
-      onUpdate: (t) => {
-        ghost.position.x += (endX - ghost.position.x) * t * 0.3;
-        ghost.position.y += (endY - ghost.position.y) * t * 0.3;
-        ghost.alpha = 1 - t * 0.3;
-      },
-      onComplete: () => {
-        ghost.alpha = 0;
-        this._cleanupDrag();
-        if (this._onCancel && this._dragSource) {
-          this._onCancel(this._dragSource.pid, this._dragSource.card, this._dragSource.handIdx);
-        }
-      },
-    }).toPromise();
+    this._snapBackAnim.animate(ghost, this._snapBackPos).then(() => {
+      this._cleanupDrag();
+      if (this._onCancel && this._dragSource) {
+        this._onCancel(this._dragSource.pid, this._dragSource.card, this._dragSource.handIdx);
+      }
+    });
   }
 
   _animateDONSnapBack(dragSource) {
@@ -743,25 +734,12 @@ class DragManager {
       return;
     }
 
-    const endX = this._snapBackPos.x - ghost.dragW / 2;
-    const endY = this._snapBackPos.y - ghost.dragH / 2;
-
-    Animator.animate({
-      duration: 200,
-      easing: 'easeOutQuad',
-      onUpdate: (t) => {
-        ghost.position.x += (endX - ghost.position.x) * t * 0.3;
-        ghost.position.y += (endY - ghost.position.y) * t * 0.3;
-        ghost.alpha = 1 - t * 0.3;
-      },
-      onComplete: () => {
-        ghost.alpha = 0;
-        this._cleanupDrag();
-        if (this._onCancel && dragSource) {
-          this._onCancel(dragSource.pid, dragSource.donIdx);
-        }
-      },
-    }).toPromise();
+    this._snapBackAnim.animate(ghost, this._snapBackPos).then(() => {
+      this._cleanupDrag();
+      if (this._onCancel && dragSource) {
+        this._onCancel(dragSource.pid, dragSource.donIdx);
+      }
+    });
   }
 
   /** Fade out the ghost sprite over a short duration, then clean up. */
@@ -772,22 +750,9 @@ class DragManager {
       return;
     }
 
-    const fadeDur = 250;
-    const t0 = performance.now();
-    const startAlpha = ghost.alpha;
-
-    const tick = (now) => {
-      const t = Math.min((now - t0) / fadeDur, 1);
-      const e = easeOutQuad(t);
-      ghost.alpha = startAlpha * (1 - e);
-      if (t < 1) {
-        requestAnimationFrame(tick);
-      } else {
-        ghost.alpha = 0;
-        this._cleanupDrag();
-      }
-    };
-    requestAnimationFrame(tick);
+    this._fadeOutGhostAnim.animate(ghost).then(() => {
+      this._cleanupDrag();
+    });
   }
 
   _cleanupDrag() {

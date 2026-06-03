@@ -1,3 +1,5 @@
+import CostTokenShiftAnimation from '../core/animations/CostTokenShiftAnimation';
+
 const DON_TOKEN_SIZE = 36; // cost zone height (40) minus padding
 
 class ZoneRenderer {
@@ -8,6 +10,7 @@ class ZoneRenderer {
     this.ui = ui || null;
     /** @type {{pid: number, donIdx: number}|null} */
     this._draggingDON = null;
+    this._costAnim = new CostTokenShiftAnimation({ players });
   }
 
   beginDragDON(pid, donIdx) {
@@ -47,13 +50,7 @@ class ZoneRenderer {
     const oldPositions = existing.map(s => ({ x: s.position.x, y: s.position.y }));
 
     // Cancel any in-flight animation
-    if (this._costAnimTimers && this._costAnimTimers[pid]) {
-      cancelAnimationFrame(this._costAnimTimers[pid]);
-      delete this._costAnimTimers[pid];
-    }
-    if (this._costAnimState) {
-      delete this._costAnimState[pid];
-    }
+    this._costAnim.cancel();
 
     // Clear ALL cost tokens (including hidden ones from active drag) to prevent orphans
     zone.children.filter(c => c.isCostToken).forEach(s => zone.removeChild(s));
@@ -128,74 +125,12 @@ class ZoneRenderer {
   }
 
   cancelCostAnimation(pid) {
-    if (this._costAnimTimers && this._costAnimTimers[pid]) {
-      cancelAnimationFrame(this._costAnimTimers[pid]);
-      delete this._costAnimTimers[pid];
-    }
-    if (this._costAnimState) {
-      delete this._costAnimState[pid];
-    }
+    this._costAnim.cancel();
   }
 
   _animateCostTokensTo(zone, oldPositions, count, startX, tokenW, gap, yOff, pid, canAct, onDONTokenPointerDown) {
-    this._costAnimTimers = this._costAnimTimers || {};
-    this._costAnimState = this._costAnimState || {};
-    this._costAnimState[pid] = { oldPositions, count, startX, tokenW, gap, yOff, canAct, onDONTokenPointerDown };
-
-    const t0 = performance.now();
-    const duration = 500;
-
-    const tick = (now) => {
-      const rawT = Math.min((now - t0) / duration, 1);
-      const ease = 1 - Math.pow(1 - rawT, 3); // ease-out cubic
-
-      // Look up tokens fresh each frame to handle re-renders
-      const tokens = zone.children.filter(c => c.isCostToken && c.alpha > 0.5);
-      if (tokens.length === 0) {
-        if (this._costAnimTimers && this._costAnimTimers[pid]) delete this._costAnimTimers[pid];
-        if (this._costAnimState) delete this._costAnimState[pid];
-        return;
-      }
-
-      for (let i = 0; i < tokens.length && i < count; i++) {
-        const targetX = startX + i * (tokenW + gap) + tokenW / 2;
-        const targetY = yOff + tokenW / 2;
-        const ox = oldPositions[i] ? oldPositions[i].x : targetX;
-        const oy = oldPositions[i] ? oldPositions[i].y : targetY;
-        tokens[i].position.x = ox + (targetX - ox) * ease;
-        tokens[i].position.y = oy + (targetY - oy) * ease;
-      }
-
-      if (rawT >= 1) {
-        for (let i = 0; i < tokens.length && i < count; i++) {
-          tokens[i].position.set(
-            startX + i * (tokenW + gap) + tokenW / 2,
-            yOff + tokenW / 2
-          );
-        }
-        if (canAct && onDONTokenPointerDown) {
-          for (let i = 0; i < tokens.length && i < count; i++) {
-            const don = this.players[pid].costArea[i];
-            if (don && don.active && !don.rested && pid === 1) {
-              tokens[i].eventMode = 'static';
-              tokens[i].cursor = 'pointer';
-              tokens[i].removeAllListeners('pointerdown');
-              const idx = i;
-              tokens[i].on('pointerdown', (e) => onDONTokenPointerDown(e, pid, idx, tokens[i]));
-            }
-          }
-        }
-        if (this._costAnimTimers && this._costAnimTimers[pid]) {
-          delete this._costAnimTimers[pid];
-        }
-        if (this._costAnimState) {
-          delete this._costAnimState[pid];
-        }
-        return;
-      }
-      this._costAnimTimers[pid] = requestAnimationFrame(tick);
-    };
-    this._costAnimTimers[pid] = requestAnimationFrame(tick);
+    this._costAnim.cancel();
+    this._costAnim.animate(zone, oldPositions, count, startX, tokenW, gap, yOff, pid, canAct, onDONTokenPointerDown);
   }
 
   _renderDeck(pid) {

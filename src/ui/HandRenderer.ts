@@ -1,5 +1,5 @@
 import CardRenderer from './CardRenderer';
-import { Animator } from '../core/Animator';
+import HandPositionAnimation from '../core/animations/HandPositionAnimation';
 import { easeOutQuad } from '../core/animations/utils';
 
 class HandRenderer {
@@ -10,6 +10,7 @@ class HandRenderer {
     this.players = players;
     this.handSprites = { 1: [], 2: [] };
     this._animatingShift = { 1: false, 2: false };
+    this._positionAnim = new HandPositionAnimation({});
   }
 
   _animatePositions(pid, fromPositions, toPositions) {
@@ -25,44 +26,23 @@ class HandRenderer {
     }
 
     let maxDur = 0;
-
     for (let i = 0; i < sprites.length; i++) {
       const sp = sprites[i];
       const fx = fromPositions[i] ? fromPositions[i].x : toPositions[i].x;
       const fy = fromPositions[i] ? fromPositions[i].y : toPositions[i].y;
       const tx = toPositions[i].x;
       const ty = toPositions[i].y;
-
       if (Math.abs(fx - tx) < 1 && Math.abs(fy - ty) < 1) {
         sp.position.set(tx, ty);
         continue;
       }
-
-      sp.position.set(fx, fy);
-
-      const dx = tx - fx;
-      const dy = ty - fy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const duration = Math.min(Math.max(dist * 1.4, 100), 300);
-      maxDur = Math.max(maxDur, duration);
-
-      Animator.animate({
-        duration,
-        easing: 'easeOutQuad',
-        onUpdate: (t) => {
-          sp.position.x = fx + dx * t;
-          sp.position.y = fy + dy * t;
-        },
-        onComplete: () => {
-          sp.position.x = tx;
-          sp.position.y = ty;
-          sp._basePosX = tx;
-          sp._basePosY = ty;
-        },
-      }).toPromise();
+      const dist = Math.sqrt((tx - fx) ** 2 + (ty - fy) ** 2);
+      maxDur = Math.max(maxDur, Math.min(Math.max(dist * 1.4, 100), 300));
     }
 
-    setTimeout(() => { this._animatingShift[pid] = false; }, maxDur);
+    this._positionAnim.animate(sprites, fromPositions, toPositions).finally(() => {
+      this._animatingShift[pid] = false;
+    });
   }
 
 /** Fade out a card sprite and animate remaining cards shifting to fill the gap. Returns a promise. */
