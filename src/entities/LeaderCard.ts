@@ -8,10 +8,13 @@ class LeaderCard extends Card {
     this.isLeader = true;
     this.rested = false;
     this.donAttached = 0;
+    this._donBonusActive = true;
   }
 
   get currentPower() {
-    return this.power + this.donAttached * 1000;
+    // DON bonus only applies during owner's turn
+    const donBonus = (this._donBonusActive && this.donAttached > 0) ? this.donAttached * 1000 : 0;
+    return this.power + donBonus;
   }
 }
 

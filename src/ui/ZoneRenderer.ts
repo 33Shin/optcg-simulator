@@ -42,8 +42,8 @@ class ZoneRenderer {
     // Limit rendering to visibleCount during DON phase animation
     const count = visibleCount !== undefined ? Math.min(visibleCount, p.costArea.length) : p.costArea.length;
 
-    // Capture old positions for animation (skip hidden drag ghosts)
-    const existing = zone.children.filter(c => c.isCostToken && c.alpha > 0.5);
+    // Capture old positions for animation (skip hidden drag ghosts and ghost tokens from KO anim)
+    const existing = zone.children.filter(c => c.isCostToken && c.alpha > 0.5 && !c._isGhostToken);
     const oldPositions = existing.map(s => ({ x: s.position.x, y: s.position.y }));
 
     // Cancel any in-flight animation

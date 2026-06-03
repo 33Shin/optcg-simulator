@@ -1,5 +1,5 @@
 class BattleManager {
-  constructor(players, donSystem, combatSystem, effectSystem, ui, fieldRenderer, zoneManager, animManager) {
+  constructor(players, donSystem, combatSystem, effectSystem, ui, fieldRenderer, zoneManager, zoneRenderer, animManager) {
     this.players = players;
     this.donSystem = donSystem;
     this.combatSystem = combatSystem;
@@ -7,6 +7,7 @@ class BattleManager {
     this.ui = ui;
     this.fieldRenderer = fieldRenderer;
     this.zoneManager = zoneManager;
+    this.zoneRenderer = zoneRenderer;
     this.animManager = animManager;
   }
 
@@ -43,11 +44,17 @@ class BattleManager {
         await this.combatSystem.damageLeader(targetPlayer);
       } else {
         const donCount = target.donAttached || 0;
-        this.combatSystem.KO(target, targetPlayer);
-        this.effectSystem.processOnKO(target, targetPlayer);
+        // Return DONs to cost area BEFORE animation so cost zone can render them
+        if (donCount > 0) {
+          this.donSystem.returnDONs(targetPid, target);
+        }
+        // Animate DON return
         if (donCount > 0 && this.animManager) {
           await this.animManager.animateDONReturnOnKO(targetPid, targetZone, donCount);
+          this.zoneRenderer.renderCostTokens(targetPid);
         }
+        this.combatSystem.KO(target, targetPlayer);
+        this.effectSystem.processOnKO(target, targetPlayer);
         if (this.animManager.flyToTrash && targetZone) {
           koAnimations.push(this.animManager.flyToTrash.animate(targetPid, target, targetZone));
         }
@@ -61,11 +68,17 @@ class BattleManager {
         await this.combatSystem.damageLeader(targetPlayer);
       } else {
         const donCount = target.donAttached || 0;
-        this.combatSystem.KO(target, targetPlayer);
-        this.effectSystem.processOnKO(target, targetPlayer);
+        // Return DONs to cost area BEFORE animation so cost zone can render them
+        if (donCount > 0) {
+          this.donSystem.returnDONs(targetPid, target);
+        }
+        // Animate DON return
         if (donCount > 0 && this.animManager) {
           await this.animManager.animateDONReturnOnKO(targetPid, targetZone, donCount);
+          this.zoneRenderer.renderCostTokens(targetPid);
         }
+        this.combatSystem.KO(target, targetPlayer);
+        this.effectSystem.processOnKO(target, targetPlayer);
         if (this.animManager.flyToTrash && targetZone) {
           koAnimations.push(this.animManager.flyToTrash.animate(targetPid, target, targetZone));
         }

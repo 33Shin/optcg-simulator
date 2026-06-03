@@ -90,7 +90,7 @@ class Game {
     this.battleManager = new BattleManager(
       this.players, this.donSystem, this.combatSystem,
       this.effectSystem, this.ui, this.fieldRenderer,
-      this.zoneManager, this.animManager
+      this.zoneManager, this.zoneRenderer, this.animManager
     );
     this.dragManager = new DragManager(
       app, this.gameBoard, this.gameBoard.board,
@@ -278,7 +278,9 @@ class Game {
       if (data.phase === 'refresh') this._onPhaseRefresh(data.player);
 
       this.scheduleRender(() => {
-        this._renderDONTokens();
+        if (data.phase !== 'refresh') {
+          this._renderDONTokens();
+        }
         if (data.phase === 'end') {
           this.handRenderer.render(1);
           this.handRenderer.render(2);
@@ -295,6 +297,21 @@ class Game {
         this.zoneRenderer.renderAll();
         this.zoneRenderer.renderLifeIndicatorsBoth();
         this._bindLeaderInteraction(1);
+      });
+    });
+
+    this.eventBus.on('main:ready', () => {
+      // Enable DON bonus for current player's cards at start of main phase
+      const pid = this.state.currentPlayer;
+      const p = this.players[pid];
+      for (const card of p.field) {
+        if (card) card._donBonusActive = true;
+      }
+      if (p.leader) p.leader._donBonusActive = true;
+      // Re-render to show updated power with DON bonus
+      this.scheduleRender(() => {
+        this.fieldRenderer.renderField(pid);
+        this.fieldRenderer.renderLeaders();
       });
     });
 
@@ -458,18 +475,18 @@ class Game {
   // --- Phase handlers ---
 
   async _onPhaseEnd(pid) {
-    // Save DON-attached state for restore during refresh
-    this._savedDONStates[pid] = this.donSystem.saveDONState(pid);
-
+    // DONs stay physically attached, only power bonus is lost
+    // Run DON detach animation to show power going down
     await this.animManager.animateDONDetach(pid);
 
-    // Clear attached DON counts (actual tokens restored in refresh via donSystem)
+    // Disable DON bonus for this player's cards during opponent's turn
     const p = this.players[pid];
-    for (let i = 0; i < p.field.length; i++) {
-      if (p.field[i]) p.field[i].donAttached = 0;
+    for (const card of p.field) {
+      if (card) card._donBonusActive = false;
     }
-    p.leader.donAttached = 0;
+    if (p.leader) p.leader._donBonusActive = false;
 
+    // Re-render field to update power text (DON bonus removed during opponent's turn)
     this.scheduleRender(() => {
       this.fieldRenderer.renderField(pid);
       this.fieldRenderer.renderLeaders();
@@ -477,12 +494,8 @@ class Game {
   }
 
   _onPhaseRefresh(pid) {
-    const saved = this._savedDONStates[pid];
-    if (!saved) return;
-
-    // Restore DON tokens to cost area as rested (delegated to DONSystem)
-    this.donSystem.restoreDONToCostArea(pid, saved);
-    delete this._savedDONStates[pid];
+    // DONs are still attached to cards, returnAllDON() in TurnManager handles returning them
+    // No need to restore from saved state anymore
   }
 
   // --- Render helpers ---

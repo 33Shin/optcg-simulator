@@ -103,12 +103,18 @@ class DONSystem {
   restoreDONToCostArea(pid, saved) {
     const p = this.players[pid];
     for (let i = 0; i < p.field.length; i++) {
-      for (let j = 0; j < (saved.field[i] || 0); j++) {
-        p.costArea.push({ active: false, rested: true });
+      // Only restore DONs for slots that still have a card (KO'd cards already returned DONs)
+      if (p.field[i] && (saved.field[i] || 0) > 0) {
+        for (let j = 0; j < saved.field[i]; j++) {
+          p.costArea.push({ active: false, rested: true });
+        }
       }
     }
-    for (let j = 0; j < (saved.leader || 0); j++) {
-      p.costArea.push({ active: false, rested: true });
+    // Only restore leader DONs if leader still exists
+    if (p.leader && (saved.leader || 0) > 0) {
+      for (let j = 0; j < saved.leader; j++) {
+        p.costArea.push({ active: false, rested: true });
+      }
     }
   }
 

@@ -105,6 +105,8 @@ class AnimationManager {
 
   /**
    * Animate DON tokens flying from a KO'd card back to the cost zone as rested.
+   * DONs must already be added to player.costArea before calling this method
+   * so the cost zone can render the real tokens when the ghost tokens fade out.
    * @param {number} pid - Player ID
    * @param {PIXI.Container} targetZone - The field slot or leader zone the card was in
    * @param {number} donCount - Number of DONs to animate
@@ -112,48 +114,67 @@ class AnimationManager {
    */
   async animateDONReturnOnKO(pid, targetZone, donCount) {
     if (!targetZone || donCount <= 0) return;
-    const { app, zoneManager } = this.ctx;
+    const { app, zoneManager, players, zoneRenderer } = this.ctx;
     const costZone = zoneManager.getZone(pid, 'cost');
     if (!costZone) return;
 
     const donTexture = PIXI.Texture.from('assets/imgs/don.png');
     const startCenter = targetZone.toGlobal(new PIXI.Point(targetZone.width / 2, targetZone.height / 2));
-    const costCenter = costZone.toGlobal(new PIXI.Point(costZone.width / 2, costZone.height / 2));
-    const startPos = app.stage.toLocal(startCenter);
-    const endPos = app.stage.toLocal(costCenter);
+    const startPos = costZone.toLocal(startCenter);
+
+    // Calculate individual DON slot positions in cost area (matching ZoneRenderer layout)
+    // currentCount already includes the DONs just returned by returnDONs()
+    const tokenW = 36;
+    const gap = 10;
+    const currentCount = players[pid].costArea.length;
+    const numTokens = Math.max(currentCount, 10);
+    const totalW = numTokens * tokenW + (numTokens - 1) * gap;
+    const startX = (costZone.width - totalW) / 2;
+    const yOff = (40 - tokenW) / 2;
+
+    const endPositions = [];
+    for (let i = 0; i < donCount; i++) {
+      const slotIdx = currentCount - donCount + i;
+      const targetX = startX + slotIdx * (tokenW + gap) + tokenW / 2;
+      const targetY = yOff + tokenW / 2;
+      endPositions.push({ x: targetX, y: targetY });
+    }
 
     const duration = 350;
-    const stagger = 60;
     const t0 = performance.now();
 
+    // Put ghost tokens inside cost zone so they share the same coordinate space
     const tokens = [];
     for (let i = 0; i < donCount; i++) {
       const sp = new PIXI.Sprite(donTexture);
       sp.name = `donReturnToken_${i}`;
-      sp.width = 28;
-      sp.height = 40;
+      sp.width = 36;
+      sp.height = 36;
       sp.anchor.set(0.5);
       sp.position.set(startPos.x, startPos.y);
       sp.alpha = 1;
       sp.eventMode = 'none';
-      sp._delay = i * stagger;
-      app.stage.addChild(sp);
+      sp._isGhostToken = true;
+      // Start in rest state: rotated 90deg, gray tint
+      sp.rotation = Math.PI / 2;
+      sp.tint = '#666666';
+      sp._endPos = endPositions[i];
+      costZone.addChild(sp);
       tokens.push(sp);
     }
 
     return new Promise((resolve) => {
       const tick = (now) => {
         const elapsed = now - t0;
+        const t = Math.min(elapsed / duration, 1);
+        const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
         let allDone = true;
         for (const sp of tokens) {
-          const te = Math.max(0, elapsed - sp._delay);
-          const t = Math.min(te / duration, 1);
           if (t < 1) allDone = false;
-          const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-          sp.x = startPos.x + (endPos.x - startPos.x) * e;
-          sp.y = startPos.y + (endPos.y - startPos.y) * e;
-          sp.rotation = (Math.PI / 2) * (1 - e);
-          sp.alpha = t > 0.7 ? 1 - (t - 0.7) / 0.3 : 1;
+          sp.x = startPos.x + (sp._endPos.x - startPos.x) * e;
+          sp.y = startPos.y + (sp._endPos.y - startPos.y) * e;
+          sp.rotation = Math.PI / 2;
         }
         if (allDone) {
           for (const sp of tokens) {

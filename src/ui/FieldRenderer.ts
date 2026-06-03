@@ -46,7 +46,8 @@ class FieldRenderer {
       }
 
       if (card.power != null) {
-        const powerText = this.renderer.setPowerBadge(fieldCardSprite, card.currentPower || card.power, card.donAttached > 0);
+        const hasDONBonus = card._donBonusActive && card.donAttached > 0;
+        const powerText = this.renderer.setPowerBadge(fieldCardSprite, card.currentPower || card.power, hasDONBonus);
         powerText.name = `powerText_${pid}_${i}`;
         powerText.isPowerText = true;
       }
@@ -89,7 +90,8 @@ class FieldRenderer {
     else this.renderer.markActive(leaderCardSprite);
 
     if (p.leader.power != null) {
-      const powerText = this.renderer.setPowerBadge(leaderCardSprite, p.leader.currentPower || p.leader.power, p.leader.donAttached > 0);
+      const hasDONBonus = p.leader._donBonusActive && p.leader.donAttached > 0;
+      const powerText = this.renderer.setPowerBadge(leaderCardSprite, p.leader.currentPower || p.leader.power, hasDONBonus);
       powerText.name = `powerText_leader_${pid}`;
       powerText.isPowerText = true;
     }

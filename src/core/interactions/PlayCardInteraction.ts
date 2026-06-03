@@ -99,13 +99,17 @@ class PlayCardInteraction {
     let trashAnim = Promise.resolve();
     if (oldCard) {
       const donCount = oldCard.donAttached || 0;
-      donSystem.returnDONs(pid, oldCard);
-      effectSystem.processOnKO(oldCard, player);
-      player.trash.push(oldCard);
-      player.field[slotIdx] = null;
+      // Return DONs to cost area BEFORE animation so cost zone can render them
+      if (donCount > 0) {
+        donSystem.returnDONs(pid, oldCard);
+      }
+      // Animate DON return (renders real tokens when ghost tokens fade)
       if (donCount > 0 && animManager) {
         await animManager.animateDONReturnOnKO(pid, fieldSlot, donCount);
       }
+      effectSystem.processOnKO(oldCard, player);
+      player.trash.push(oldCard);
+      player.field[slotIdx] = null;
       if (animManager.flyToTrash) {
         trashAnim = animManager.flyToTrash.animate(pid, oldCard, fieldSlot).then(() => {
           this.game.scheduleRender(() => {

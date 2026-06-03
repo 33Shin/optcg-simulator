@@ -101,4 +101,5 @@ Files like `Game.js` contain `console.warn` with field/array snapshots for debug
 
 - **No browser automation:** Do NOT use Playwright or any browser automation tools to test or verify changes unless explicitly asked by the user. Trust the code is correct; let the user test in their own browser.
 
+- **NEVER use git commands:** Do NOT run `git commit`, `git push`, `git add`, `git revert`, or any other git command — unless the user explicitly asks you to. Let the user handle version control themselves.
 - **NEVER discard code:** Do NOT use `git reset --hard`, `git clean`, `rm -rf`, or any command that permanently deletes working tree changes, untracked files, or committed history — unless the user explicitly asks you to. Use `git stash` for temporary changes, branches for experiments, and always ask before modifying git history.
