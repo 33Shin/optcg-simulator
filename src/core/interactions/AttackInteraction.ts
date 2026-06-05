@@ -455,21 +455,19 @@ class AttackInteraction {
         const correctedIdx = defender.hand.indexOf(card);
         if (correctedIdx === -1) continue;
 
-        // Phase 1: Fly from hand to center with flip (await until held at center)
-        const { flyCard } = await animManager.aiCounter.animateFlyToCenter(defenderPid, card).catch(() => (null));
-        if (!flyCard) continue;
+        // Process data logic first (remove from hand, add to trash, apply boost)
+        const result = await this._processCounterCardData(defenderPid, card, correctedIdx, target, players);
+        if (!(result && result.ok)) continue;
 
         const fromPower = getEffectivePower(target);
-        // Phase 2: Process data logic (remove from hand, add to trash, apply boost)
-        const result = await this._processCounterCardData(defenderPid, card, correctedIdx, target, players);
-        if (!(result && result.ok)) {
-          if (flyCard.parent) flyCard.parent.removeChild(flyCard);
-          continue;
-        }
 
-        // Re-render hand and zones so next counter animates from correct position
-        this.game.handRenderer.render(defenderPid);
+        // Phase 1: Fly animation + hand shift animation run in parallel
+        const flyPromise = animManager.aiCounter.animateFlyToCenter(defenderPid, card).catch(() => (null));
+        this.game.handRenderer.renderCardRemoved(defenderPid, correctedIdx);
         if (this.game.zoneRenderer) this.game.zoneRenderer.renderAll();
+
+        const { flyCard } = await flyPromise;
+        if (!flyCard) continue;
 
         const toPower = getEffectivePower(target);
         // Compute defender card's global position for fly animation

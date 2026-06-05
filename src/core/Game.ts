@@ -310,8 +310,13 @@ class Game {
       if (p.leader) p.leader._donBonusActive = true;
       // Re-render to show updated power with DON bonus
       this.scheduleRender(() => {
-        this.fieldRenderer.renderField(pid);
+        if (pid === 1) {
+          this.fieldRenderer.renderFieldWithInteraction(pid, (...args) => this.attackInteraction.onFieldCardDrag(...args));
+        } else {
+          this.fieldRenderer.renderField(pid);
+        }
         this.fieldRenderer.renderLeaders();
+        this._bindLeaderInteraction(pid);
       });
     });
 
