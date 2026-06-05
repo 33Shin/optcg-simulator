@@ -455,11 +455,12 @@ class AttackInteraction {
         const correctedIdx = defender.hand.indexOf(card);
         if (correctedIdx === -1) continue;
 
+        // Capture power BEFORE mutation so animation has a valid range
+        const fromPower = getEffectivePower(target);
+
         // Process data logic first (remove from hand, add to trash, apply boost)
         const result = await this._processCounterCardData(defenderPid, card, correctedIdx, target, players);
         if (!(result && result.ok)) continue;
-
-        const fromPower = getEffectivePower(target);
 
         // Phase 1: Fly animation + hand shift animation run in parallel
         const flyPromise = animManager.aiCounter.animateFlyToCenter(defenderPid, card).catch(() => (null));

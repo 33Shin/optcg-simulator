@@ -10,7 +10,11 @@ class ZoneRenderer {
     this.ui = ui || null;
     /** @type {{pid: number, donIdx: number}|null} */
     this._draggingDON = null;
-    this._costAnim = new CostTokenShiftAnimation({ players });
+    this._costAnim = {
+      1: new CostTokenShiftAnimation({ players }),
+      2: new CostTokenShiftAnimation({ players }),
+    };
+
   }
 
   beginDragDON(pid, donIdx) {
@@ -49,8 +53,8 @@ class ZoneRenderer {
     const existing = zone.children.filter(c => c.isCostToken && c.alpha > 0.5 && !c._isGhostToken);
     const oldPositions = existing.map(s => ({ x: s.position.x, y: s.position.y }));
 
-    // Cancel any in-flight animation
-    this._costAnim.cancel();
+    // Cancel any in-flight animation for this player
+    this._costAnim[pid].cancel();
 
     // Clear ALL cost tokens (including hidden ones from active drag) to prevent orphans
     zone.children.filter(c => c.isCostToken).forEach(s => zone.removeChild(s));
@@ -125,12 +129,12 @@ class ZoneRenderer {
   }
 
   cancelCostAnimation(pid) {
-    this._costAnim.cancel();
+    this._costAnim[pid].cancel();
   }
 
   _animateCostTokensTo(zone, oldPositions, count, startX, tokenW, gap, yOff, pid, canAct, onDONTokenPointerDown) {
-    this._costAnim.cancel();
-    this._costAnim.animate(zone, oldPositions, count, startX, tokenW, gap, yOff, pid, canAct, onDONTokenPointerDown);
+    this._costAnim[pid].cancel();
+    this._costAnim[pid].animate(zone, oldPositions, count, startX, tokenW, gap, yOff, pid, canAct, onDONTokenPointerDown);
   }
 
   _renderDeck(pid) {
