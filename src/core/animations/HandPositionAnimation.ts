@@ -1,4 +1,4 @@
-import { Animator } from '../Animator';
+import { gsap } from 'gsap';
 
 class HandPositionAnimation {
   static requires = [];
@@ -37,20 +37,27 @@ class HandPositionAnimation {
       const dist = Math.sqrt(dx * dx + dy * dy);
       const duration = Math.min(Math.max(dist * 1.4, 100), 300);
 
-      promises.push(Animator.animate({
-        duration,
-        easing: 'easeOutQuad',
-        onUpdate: (t) => {
-          sp.position.x = fx + dx * t;
-          sp.position.y = fy + dy * t;
-        },
-        onComplete: () => {
-          sp.position.x = tx;
-          sp.position.y = ty;
-          sp._basePosX = tx;
-          sp._basePosY = ty;
-        },
-      }).toPromise());
+      // GSAP: power2.out matches easeOutQuad
+      promises.push(new Promise((resolve) => {
+        const _p = { t: 0 };
+        gsap.to(_p, {
+          t: 1,
+          duration: duration / 1000,
+          ease: 'power2.out',
+          onUpdate: () => {
+            const t = _p.t;
+            sp.position.x = fx + dx * t;
+            sp.position.y = fy + dy * t;
+          },
+          onComplete: () => {
+            sp.position.x = tx;
+            sp.position.y = ty;
+            sp._basePosX = tx;
+            sp._basePosY = ty;
+            resolve();
+          },
+        });
+      }));
     }
 
     return Promise.all(promises);

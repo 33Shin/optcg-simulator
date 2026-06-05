@@ -1,3 +1,4 @@
+import { gsap } from 'gsap';
 import { easeInOut, createFlipCard, getDisplayTexture } from './utils';
 
 export default class DamageTriggerAnimation {
@@ -71,10 +72,10 @@ export default class DamageTriggerAnimation {
   }
 
    /**
-   * Non-interactive damage trigger animation (for P2 AI).
-   * Card flies face-down. If trigger plays: flips to reveal + yellow glow activation.
-   * If no trigger/pass: stays face-down, flies to hand.
-   */
+    * Non-interactive damage trigger animation (for P2 AI).
+    * Card flies face-down. If trigger plays: flips to reveal + yellow glow activation.
+    * If no trigger/pass: stays face-down, flies to hand.
+    */
   async animateAI(pid, player, card, hasTrigger, played, sourceZoneId = 'deck') {
     const { app, zoneManager, handRenderer } = this.ctx;
     const sourceZone = zoneManager.getZone(pid, sourceZoneId);
@@ -167,26 +168,35 @@ export default class DamageTriggerAnimation {
 
   /** Fade in a text object, hold it visible, then fade out + remove both objects. */
   _fadeInOutHold(textObj, overlay, fadeInDur, holdDur, fadeOutDur) {
-    const start = performance.now();
+    const total = fadeInDur + holdDur + fadeOutDur;
     return new Promise((resolve) => {
-      requestAnimationFrame(function tick(now) {
-        const elapsed = now - start;
+      const _p = { t: 0 };
+      gsap.to(_p, {
+        t: 1,
+        duration: total / 1000,
+        ease: 'none',
+        onUpdate: () => {
+          const t = _p.t;
+          const elapsed = t * total;
 
-        if (elapsed < fadeInDur) {
-          textObj.alpha = Math.min(elapsed / fadeInDur, 1);
-        } else if (elapsed < fadeInDur + holdDur) {
-          textObj.alpha = 1;
-        } else if (elapsed < fadeInDur + holdDur + fadeOutDur) {
-          const t = (elapsed - fadeInDur - holdDur) / fadeOutDur;
-          textObj.alpha = Math.max(0, 1 - t);
-          overlay.alpha = Math.max(0, 0.7 * (1 - t));
-        } else {
+          if (elapsed < fadeInDur) {
+            textObj.alpha = Math.min(elapsed / fadeInDur, 1);
+          } else if (elapsed < fadeInDur + holdDur) {
+            textObj.alpha = 1;
+          } else if (elapsed < fadeInDur + holdDur + fadeOutDur) {
+            const pt = (elapsed - fadeInDur - holdDur) / fadeOutDur;
+            textObj.alpha = Math.max(0, 1 - pt);
+            overlay.alpha = Math.max(0, 0.7 * (1 - pt));
+          } else {
+            if (textObj.parent) textObj.parent.removeChild(textObj);
+            if (overlay.parent) overlay.parent.removeChild(overlay);
+          }
+        },
+        onComplete: () => {
           if (textObj.parent) textObj.parent.removeChild(textObj);
           if (overlay.parent) overlay.parent.removeChild(overlay);
           resolve();
-          return;
-        }
-        requestAnimationFrame(tick);
+        },
       });
     });
   }
@@ -194,35 +204,32 @@ export default class DamageTriggerAnimation {
   /** Fly card from source to screen center with flip animation. */
   _flyToCenter(flyCard, fromPos, centerPos, doFlip = true) {
     const duration = 500;
-    const start = performance.now();
-
     return new Promise((resolve) => {
-      requestAnimationFrame(function tick(now) {
-        const elapsed = now - start;
-        const t = Math.min(elapsed / duration, 1);
-        const e = easeInOut(t);
-
-        if (doFlip) {
-          if (t < 0.5) flyCard.showBack();
-          else flyCard.showFront();
-          const flipSign = 2 * e - 1;
-          const growthScale = 1 + e * 1;
-          flyCard.scale.set(Math.abs(flipSign) * growthScale, growthScale);
-        } else {
-          flyCard.showFront();
-          const growthScale = 1 + e * 1;
-          flyCard.scale.set(growthScale, growthScale);
-        }
-
-        flyCard.x = fromPos.x + (centerPos.x - fromPos.x) * e;
-        flyCard.y = fromPos.y + (centerPos.y - fromPos.y) * e;
-
-        if (t < 1) {
-          requestAnimationFrame(tick);
-        } else {
+      const _p = { t: 0 };
+      gsap.to(_p, {
+        t: 1,
+        duration: duration / 1000,
+        ease: 'sine.inOut',
+        onUpdate: () => {
+          const e = _p.t;
+          if (doFlip) {
+            if (e < 0.5) flyCard.showBack();
+            else flyCard.showFront();
+            const flipSign = 2 * e - 1;
+            const growthScale = 1 + e * 1;
+            flyCard.scale.set(Math.abs(flipSign) * growthScale, growthScale);
+          } else {
+            flyCard.showFront();
+            const growthScale = 1 + e * 1;
+            flyCard.scale.set(growthScale, growthScale);
+          }
+          flyCard.x = fromPos.x + (centerPos.x - fromPos.x) * e;
+          flyCard.y = fromPos.y + (centerPos.y - fromPos.y) * e;
+        },
+        onComplete: () => {
           flyCard.scale.set(2, 2);
           resolve();
-        }
+        },
       });
     });
   }
@@ -230,26 +237,24 @@ export default class DamageTriggerAnimation {
   /** Fly card face-down from source to center, no flip reveal. */
   _flyToCenterFaceDown(flyCard, fromPos, centerPos) {
     const duration = 500;
-    const start = performance.now();
-
     return new Promise((resolve) => {
-      requestAnimationFrame(function tick(now) {
-        const elapsed = now - start;
-        const t = Math.min(elapsed / duration, 1);
-        const e = easeInOut(t);
-
-        flyCard.showBack();
-        const growthScale = 1 + e * 1;
-        flyCard.scale.set(growthScale, growthScale);
-        flyCard.x = fromPos.x + (centerPos.x - fromPos.x) * e;
-        flyCard.y = fromPos.y + (centerPos.y - fromPos.y) * e;
-
-        if (t < 1) {
-          requestAnimationFrame(tick);
-        } else {
+      const _p = { t: 0 };
+      gsap.to(_p, {
+        t: 1,
+        duration: duration / 1000,
+        ease: 'sine.inOut',
+        onUpdate: () => {
+          const e = _p.t;
+          flyCard.showBack();
+          const growthScale = 1 + e * 1;
+          flyCard.scale.set(growthScale, growthScale);
+          flyCard.x = fromPos.x + (centerPos.x - fromPos.x) * e;
+          flyCard.y = fromPos.y + (centerPos.y - fromPos.y) * e;
+        },
+        onComplete: () => {
           flyCard.scale.set(2, 2);
           resolve();
-        }
+        },
       });
     });
   }
@@ -260,7 +265,6 @@ export default class DamageTriggerAnimation {
     const centerY = app.screen.height / 2;
     const totalDur = 800;
     const flipDur = 400;
-    const start = performance.now();
 
     // Glow filter (yellow/golden)
     const glowFilter = new PIXI.filters.GlowFilter({
@@ -321,71 +325,72 @@ export default class DamageTriggerAnimation {
     }
 
     return new Promise((resolve) => {
-      requestAnimationFrame(function tick(now) {
-        const elapsed = now - start;
-        const t = Math.min(elapsed / totalDur, 1);
+      const _p = { t: 0 };
+      gsap.to(_p, {
+        t: 1,
+        duration: totalDur / 1000,
+        ease: 'none',
+        onUpdate: () => {
+          const t = _p.t;
 
-        if (t < flipDur / totalDur) {
-          // Phase 1: Flip reveal with scale pulse
-          const p = elapsed / flipDur;
-          flyCard.x = centerX;
-          flyCard.y = centerY;
-          flyCard.scale.set(2 + Math.sin(p * Math.PI) * 0.3, 2 + Math.sin(p * Math.PI) * 0.3);
+          if (t < flipDur / totalDur) {
+            // Phase 1: Flip reveal with scale pulse
+            const p = t / (flipDur / totalDur);
+            flyCard.x = centerX;
+            flyCard.y = centerY;
+            flyCard.scale.set(2 + Math.sin(p * Math.PI) * 0.3, 2 + Math.sin(p * Math.PI) * 0.3);
 
-          if (p < 0.5) {
-            flyCard.showBack();
-          } else {
-            flyCard.showFront();
-            flyCard.filters = [glowFilter];
-          }
-
-          // Glow pulse during flip
-          glowFilter.outerStrength = 2 + 4 * Math.sin(p * Math.PI);
-
-        } else {
-          // Phase 2: Activation VFX then fade
-          const p = (elapsed - flipDur) / (totalDur - flipDur);
-
-          flyCard.x = centerX;
-          flyCard.y = centerY;
-          flyCard.scale.set(2, 2);
-          flyCard.showFront();
-
-          // Spark: scale up then fade
-          const sparkP = Math.min(p / 0.3, 1);
-          spark.alpha = Math.max(0, 1 - sparkP);
-          spark.scale.set(sparkP * 6);
-
-          // Ring: expand and fade
-          const ringP = Math.min(p / 0.5, 1);
-          ring.alpha = Math.max(0, 1 - ringP);
-          ring.scale.set(0.2 + ringP * 3);
-
-          // Particles: spread out and fade
-          const partP = Math.min(p / 0.6, 1);
-          for (const pt of particles) {
-            pt.x = pt.x + (pt._targetX - pt.x) * partP * 0.1;
-            pt.y = pt.y + (pt._targetY - pt.y) * partP * 0.1;
-            pt.alpha = Math.max(0, 1 - partP);
-          }
-
-          // Glow decay
-          glowFilter.outerStrength = 2 * (1 - p);
-
-          if (p >= 1) {
-            flyCard.filters = null;
-            fxContainer.removeChild(ring);
-            fxContainer.removeChild(spark);
-            for (const pt of particles) {
-              if (pt.parent) pt.parent.removeChild(pt);
+            if (p < 0.5) {
+              flyCard.showBack();
+            } else {
+              flyCard.showFront();
+              flyCard.filters = [glowFilter];
             }
-            if (fxContainer.parent) fxContainer.parent.removeChild(fxContainer);
-            resolve();
-            return;
-          }
-        }
 
-        requestAnimationFrame(tick);
+            // Glow pulse during flip
+            glowFilter.outerStrength = 2 + 4 * Math.sin(p * Math.PI);
+
+          } else {
+            // Phase 2: Activation VFX then fade
+            const p = (t - flipDur / totalDur) / (1 - flipDur / totalDur);
+
+            flyCard.x = centerX;
+            flyCard.y = centerY;
+            flyCard.scale.set(2, 2);
+            flyCard.showFront();
+
+            // Spark: scale up then fade
+            const sparkP = Math.min(p / 0.3, 1);
+            spark.alpha = Math.max(0, 1 - sparkP);
+            spark.scale.set(sparkP * 6);
+
+            // Ring: expand and fade
+            const ringP = Math.min(p / 0.5, 1);
+            ring.alpha = Math.max(0, 1 - ringP);
+            ring.scale.set(0.2 + ringP * 3);
+
+            // Particles: spread out and fade
+            const partP = Math.min(p / 0.6, 1);
+            for (const pt of particles) {
+              pt.x = pt.x + (pt._targetX - pt.x) * partP * 0.1;
+              pt.y = pt.y + (pt._targetY - pt.y) * partP * 0.1;
+              pt.alpha = Math.max(0, 1 - partP);
+            }
+
+            // Glow decay
+            glowFilter.outerStrength = 2 * (1 - p);
+          }
+        },
+        onComplete: () => {
+          flyCard.filters = null;
+          fxContainer.removeChild(ring);
+          fxContainer.removeChild(spark);
+          for (const pt of particles) {
+            if (pt.parent) pt.parent.removeChild(pt);
+          }
+          if (fxContainer.parent) fxContainer.parent.removeChild(fxContainer);
+          resolve();
+        },
       });
     });
   }
@@ -395,7 +400,6 @@ export default class DamageTriggerAnimation {
     const centerX = app.screen.width / 2;
     const centerY = app.screen.height / 2;
     const totalDur = 800;
-    const start = performance.now();
 
     // Glow filter (yellow/golden)
     const glowFilter = new PIXI.filters.GlowFilter({
@@ -453,36 +457,40 @@ export default class DamageTriggerAnimation {
     }
 
     return new Promise((resolve) => {
-      requestAnimationFrame(function tick(now) {
-        const elapsed = now - start;
-        const t = Math.min(elapsed / totalDur, 1);
+      const _p = { t: 0 };
+      gsap.to(_p, {
+        t: 1,
+        duration: totalDur / 1000,
+        ease: 'none',
+        onUpdate: () => {
+          const t = _p.t;
 
-        flyCard.x = centerX;
-        flyCard.y = centerY;
-        flyCard.scale.set(2, 2);
+          flyCard.x = centerX;
+          flyCard.y = centerY;
+          flyCard.scale.set(2, 2);
 
-        // Spark: scale up then fade
-        const sparkP = Math.min(t / 0.3, 1);
-        spark.alpha = Math.max(0, 1 - sparkP);
-        spark.scale.set(sparkP * 6);
+          // Spark: scale up then fade
+          const sparkP = Math.min(t / 0.3, 1);
+          spark.alpha = Math.max(0, 1 - sparkP);
+          spark.scale.set(sparkP * 6);
 
-        // Ring: expand and fade
-        const ringP = Math.min(t / 0.5, 1);
-        ring.alpha = Math.max(0, 1 - ringP);
-        ring.scale.set(0.2 + ringP * 3);
+          // Ring: expand and fade
+          const ringP = Math.min(t / 0.5, 1);
+          ring.alpha = Math.max(0, 1 - ringP);
+          ring.scale.set(0.2 + ringP * 3);
 
-        // Particles: spread out and fade
-        const partP = Math.min(t / 0.6, 1);
-        for (const pt of particles) {
-          pt.x = pt.x + (pt._targetX - pt.x) * partP * 0.1;
-          pt.y = pt.y + (pt._targetY - pt.y) * partP * 0.1;
-          pt.alpha = Math.max(0, 1 - partP);
-        }
+          // Particles: spread out and fade
+          const partP = Math.min(t / 0.6, 1);
+          for (const pt of particles) {
+            pt.x = pt.x + (pt._targetX - pt.x) * partP * 0.1;
+            pt.y = pt.y + (pt._targetY - pt.y) * partP * 0.1;
+            pt.alpha = Math.max(0, 1 - partP);
+          }
 
-        // Glow pulse then decay
-        glowFilter.outerStrength = 2 + 4 * Math.sin(t * Math.PI);
-
-        if (t >= 1) {
+          // Glow pulse then decay
+          glowFilter.outerStrength = 2 + 4 * Math.sin(t * Math.PI);
+        },
+        onComplete: () => {
           flyCard.filters = null;
           fxContainer.removeChild(ring);
           fxContainer.removeChild(spark);
@@ -491,10 +499,7 @@ export default class DamageTriggerAnimation {
           }
           if (fxContainer.parent) fxContainer.parent.removeChild(fxContainer);
           resolve();
-          return;
-        }
-
-        requestAnimationFrame(tick);
+        },
       });
     });
   }
@@ -511,26 +516,26 @@ export default class DamageTriggerAnimation {
 
     const fromX = flyCard.x;
     const fromY = flyCard.y;
-    const start = performance.now();
     const duration = 400;
 
     return new Promise((resolve) => {
-      requestAnimationFrame(function tick(now) {
-        const t = Math.min((now - start) / duration, 1);
-        const e = easeInOut(t);
-
-        flyCard.x = fromX + (toPos.x - fromX) * e;
-        flyCard.y = fromY + (toPos.y - fromY) * e;
-        flyCard.alpha = 1;
-        const shrink = 2 - e * 1.5;
-        flyCard.scale.set(shrink, shrink);
-
-        if (t < 1) {
-          requestAnimationFrame(tick);
-        } else {
+      const _p = { t: 0 };
+      gsap.to(_p, {
+        t: 1,
+        duration: duration / 1000,
+        ease: 'sine.inOut',
+        onUpdate: () => {
+          const e = _p.t;
+          flyCard.x = fromX + (toPos.x - fromX) * e;
+          flyCard.y = fromY + (toPos.y - fromY) * e;
+          flyCard.alpha = 1;
+          const shrink = 2 - e * 1.0;  // 2 → 1 (normal trash size)
+          flyCard.scale.set(shrink, shrink);
+        },
+        onComplete: () => {
           if (flyCard.parent) flyCard.parent.removeChild(flyCard);
           resolve();
-        }
+        },
       });
     });
   }
@@ -549,17 +554,15 @@ export default class DamageTriggerAnimation {
   /** Fade out and remove a display object. */
   _fadeOut(obj) {
     const duration = 300;
-    const start = performance.now();
     return new Promise((resolve) => {
-      requestAnimationFrame(function tick(now) {
-        const t = Math.min((now - start) / duration, 1);
-        obj.alpha = 1 - t;
-        if (t < 1) {
-          requestAnimationFrame(tick);
-        } else {
+      gsap.to(obj, {
+        alpha: 0,
+        duration: duration / 1000,
+        ease: 'none',
+        onComplete: () => {
           if (obj.parent) obj.parent.removeChild(obj);
           resolve();
-        }
+        },
       });
     });
   }
@@ -600,16 +603,8 @@ export default class DamageTriggerAnimation {
       promptText.eventMode = 'none';
       app.stage.addChild(promptText);
 
-      // Fade in prompt text
-      const fadeInDur = 300;
-      const fadeStart = performance.now();
-      const fadeTick = (now) => {
-        const t = Math.min((now - fadeStart) / fadeInDur, 1);
-        promptText.alpha = t;
-        if (t < 1) requestAnimationFrame(fadeTick);
-        else setupButtons();
-      };
-      requestAnimationFrame(fadeTick);
+      // Fade in prompt text (GSAP)
+      gsap.to(promptText, { alpha: 1, duration: 0.3, ease: 'none', onComplete: () => setupButtons() });
 
       // Button dimensions
       const btnW = 180, btnH = 48;
@@ -681,17 +676,19 @@ export default class DamageTriggerAnimation {
         app.stage.addChild(_passBg);
         app.stage.addChild(_passText);
 
-        // Fade in buttons
-        let btnAlpha = 0;
-        const btnFadeTick = () => {
-          btnAlpha = Math.min(btnAlpha + 0.08, 1);
-          _triggerBg.alpha = btnAlpha;
-          _triggerText.alpha = btnAlpha;
-          _passBg.alpha = btnAlpha;
-          _passText.alpha = btnAlpha;
-          if (btnAlpha < 1) requestAnimationFrame(btnFadeTick);
-        };
-        requestAnimationFrame(btnFadeTick);
+        // Fade in buttons (GSAP)
+        const _p = { a: 0 };
+        gsap.to(_p, {
+          a: 1,
+          duration: 0.25,
+          ease: 'none',
+          onUpdate: () => {
+            _triggerBg.alpha = _p.a;
+            _triggerText.alpha = _p.a;
+            _passBg.alpha = _p.a;
+            _passText.alpha = _p.a;
+          },
+        });
 
         // Hover on fly card: show card info panel
         flyCard.eventMode = 'static';
@@ -782,34 +779,33 @@ export default class DamageTriggerAnimation {
       });
     }
 
-    // Animate fly card + shift sprites
+    // Animate fly card + shift sprites (GSAP proxy)
     const duration = 500;
-    const start = performance.now();
 
     await new Promise((resolve) => {
-      requestAnimationFrame(function tick(now) {
-        const elapsed = now - start;
-        const t = Math.min(elapsed / duration, 1);
-        const e = easeInOut(t);
+      const _p = { t: 0 };
+      gsap.to(_p, {
+        t: 1,
+        duration: duration / 1000,
+        ease: 'sine.inOut',
+        onUpdate: () => {
+          const e = _p.t;
+          flyCard.x = centerPos.x + (toPos.x - centerPos.x) * e;
+          flyCard.y = centerPos.y + (toPos.y - centerPos.y) * e;
+          flyCard.scale.set(2 - e * 1.05, 2 - e * 1.05);
 
-        flyCard.x = centerPos.x + (toPos.x - centerPos.x) * e;
-        flyCard.y = centerPos.y + (toPos.y - centerPos.y) * e;
-        flyCard.scale.set(2 - e * 1.05, 2 - e * 1.05);
-
-        for (const st of spriteTargets) {
-          if (!st.sprite || !st.sprite.parent) continue;
-          st.sprite.position.x = st.from.x + (st.to.x - st.from.x) * e;
-          st.sprite.position.y = st.from.y + (st.to.y - st.from.y) * e;
-        }
-
-        if (t < 1) {
-          requestAnimationFrame(tick);
-        } else {
+          for (const st of spriteTargets) {
+            if (!st.sprite || !st.sprite.parent) continue;
+            st.sprite.position.x = st.from.x + (st.to.x - st.from.x) * e;
+            st.sprite.position.y = st.from.y + (st.to.y - st.from.y) * e;
+          }
+        },
+        onComplete: () => {
           // Cleanup fly card and re-render hand with the new card
           if (flyCard.parent) flyCard.parent.removeChild(flyCard);
           handRenderer.render(pid);
           resolve();
-        }
+        },
       });
     });
   }

@@ -1,9 +1,11 @@
+import { gsap } from 'gsap';
+
 class CostTokenShiftAnimation {
   static requires = ['players'];
 
   constructor(ctx) {
     this.ctx = ctx;
-    this._rafId = null;
+    this._tween = null;
   }
 
   /**
@@ -23,31 +25,33 @@ class CostTokenShiftAnimation {
   animate(zone, oldPositions, count, startX, tokenW, gap, yOff, pid, canAct, onDONTokenPointerDown) {
     if (!zone) return Promise.resolve();
 
-    const duration = 500;
-    const t0 = performance.now();
-
     return new Promise((resolve) => {
-      const tick = (now) => {
-        const rawT = Math.min((now - t0) / duration, 1);
-        const ease = 1 - Math.pow(1 - rawT, 3);
+      const _p = { t: 0 };
+      this._tween = gsap.to(_p, {
+        t: 1,
+        duration: 0.5,
+        ease: 'power3.out',
+        onUpdate: () => {
+          const ease = _p.t;
+          const tokens = zone.children.filter(c => c.isCostToken && c.alpha > 0.5);
+          if (tokens.length === 0) {
+            this._tween.kill();
+            this._tween = null;
+            resolve();
+            return;
+          }
 
-        const tokens = zone.children.filter(c => c.isCostToken && c.alpha > 0.5);
-        if (tokens.length === 0) {
-          this._rafId = null;
-          resolve();
-          return;
-        }
-
-        for (let i = 0; i < tokens.length && i < count; i++) {
-          const targetX = startX + i * (tokenW + gap) + tokenW / 2;
-          const targetY = yOff + tokenW / 2;
-          const ox = oldPositions[i] ? oldPositions[i].x : targetX;
-          const oy = oldPositions[i] ? oldPositions[i].y : targetY;
-          tokens[i].position.x = ox + (targetX - ox) * ease;
-          tokens[i].position.y = oy + (targetY - oy) * ease;
-        }
-
-        if (rawT >= 1) {
+          for (let i = 0; i < tokens.length && i < count; i++) {
+            const targetX = startX + i * (tokenW + gap) + tokenW / 2;
+            const targetY = yOff + tokenW / 2;
+            const ox = oldPositions[i] ? oldPositions[i].x : targetX;
+            const oy = oldPositions[i] ? oldPositions[i].y : targetY;
+            tokens[i].position.x = ox + (targetX - ox) * ease;
+            tokens[i].position.y = oy + (targetY - oy) * ease;
+          }
+        },
+        onComplete: () => {
+          const tokens = zone.children.filter(c => c.isCostToken && c.alpha > 0.5);
           for (let i = 0; i < tokens.length && i < count; i++) {
             tokens[i].position.set(
               startX + i * (tokenW + gap) + tokenW / 2,
@@ -67,20 +71,17 @@ class CostTokenShiftAnimation {
               }
             }
           }
-          this._rafId = null;
+          this._tween = null;
           resolve();
-          return;
-        }
-        this._rafId = requestAnimationFrame(tick);
-      };
-      this._rafId = requestAnimationFrame(tick);
+        },
+      });
     });
   }
 
   cancel() {
-    if (this._rafId != null) {
-      cancelAnimationFrame(this._rafId);
-      this._rafId = null;
+    if (this._tween) {
+      this._tween.kill();
+      this._tween = null;
     }
   }
 }

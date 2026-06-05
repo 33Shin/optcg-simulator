@@ -1,3 +1,5 @@
+import { gsap } from 'gsap';
+
 class FadeOutGhostAnimation {
   static requires = [];
 
@@ -13,23 +15,17 @@ class FadeOutGhostAnimation {
   animate(ghost) {
     if (!ghost) return Promise.resolve();
 
-    const fadeDur = 250;
-    const t0 = performance.now();
-    const startAlpha = ghost.alpha;
-
+    // GSAP: power2.out matches easeOutQuad (1 - (1-t)^2)
     return new Promise((resolve) => {
-      const tick = (now) => {
-        const t = Math.min((now - t0) / fadeDur, 1);
-        const e = 1 - (1 - t) * (1 - t);
-        ghost.alpha = startAlpha * (1 - e);
-        if (t < 1) {
-          requestAnimationFrame(tick);
-        } else {
+      gsap.to(ghost, {
+        alpha: 0,
+        duration: 0.25,
+        ease: 'power2.out',
+        onComplete: () => {
           ghost.alpha = 0;
           resolve();
-        }
-      };
-      requestAnimationFrame(tick);
+        },
+      });
     });
   }
 }

@@ -403,6 +403,8 @@ class Game {
             // Execute trigger effect for free, send card to trash
             this.effectSystem.resolveTrigger(damageCard, player);
             player.trash.push(damageCard);
+            // Render trash immediately — batcher is blocked by _animating during battle
+            this.zoneRenderer._renderTrash(pid);
             this.scheduleRender(() => this._renderAll());
           } else {
             // Pass: animation already inserted card and re-rendered hand

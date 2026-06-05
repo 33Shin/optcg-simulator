@@ -1,6 +1,6 @@
+import { gsap } from 'gsap';
 import CardRenderer from './CardRenderer';
 import HandPositionAnimation from '../core/animations/HandPositionAnimation';
-import { easeOutQuad } from '../core/animations/utils';
 
 class HandRenderer {
   constructor(zoneManager, renderer, ui, players) {
@@ -65,54 +65,54 @@ class HandRenderer {
     const { positions } = layout;
 
     // Fade out the removed card while shifting remaining cards to new positions
+    // Capture current positions for shift animation (skip null sprites and removed index)
+    const fromPositions = [];
+    for (let i = 0; i < oldSprites.length; i++) {
+      if (i === removedIdx) continue;
+      const s = oldSprites[i];
+      fromPositions.push(s && s.position ? { x: s.position.x, y: s.position.y } : null);
+    }
+
+    let shiftIdx = 0;
+    const toPosList = [];
+    for (let i = 0; i < oldSprites.length; i++) {
+      if (i === removedIdx) continue;
+      toPosList.push(positions[shiftIdx] || positions[positions.length - 1]);
+      shiftIdx++;
+    }
+
+    // GSAP: power2.out matches easeOutQuad, 400ms
     return new Promise((resolve) => {
-      const fadeDur = 400;
-      const t0 = performance.now();
+      const _p = { t: 0 };
+      gsap.to(_p, {
+        t: 1,
+        duration: 0.4,
+        ease: 'power2.out',
+        onUpdate: () => {
+          const e = _p.t;
 
-      // Capture current positions for shift animation (skip null sprites and removed index)
-      const fromPositions = [];
-      for (let i = 0; i < oldSprites.length; i++) {
-        if (i === removedIdx) continue;
-        const s = oldSprites[i];
-        fromPositions.push(s && s.position ? { x: s.position.x, y: s.position.y } : null);
-      }
-
-      let shiftIdx = 0;
-      const toPosList = [];
-      for (let i = 0; i < oldSprites.length; i++) {
-        if (i === removedIdx) continue;
-        toPosList.push(positions[shiftIdx] || positions[positions.length - 1]);
-        shiftIdx++;
-      }
-
-      const tick = (now) => {
-        const t = Math.min((now - t0) / fadeDur, 1);
-        const e = easeOutQuad(t);
-
-        // Fade out removed sprite
-        if (removedSprite) {
-          removedSprite.alpha = 1 - e;
-          removedSprite.scale.set(0.95 * (1 - 0.15 * e));
-        }
-
-        // Shift remaining sprites toward new positions
-        shiftIdx = 0;
-        for (let i = 0; i < oldSprites.length; i++) {
-          if (i === removedIdx) continue;
-          const sp = oldSprites[i];
-          if (!sp || !sp.position) { shiftIdx++; continue; }
-          const fp = fromPositions[shiftIdx];
-          const tp = toPosList[shiftIdx];
-          if (fp && tp) {
-            sp.position.x = fp.x + (tp.x - fp.x) * e;
-            sp.position.y = fp.y + (tp.y - fp.y) * e;
+          // Fade out removed sprite
+          if (removedSprite) {
+            removedSprite.alpha = 1 - e;
+            removedSprite.scale.set(0.95 * (1 - 0.15 * e));
           }
-          shiftIdx++;
-        }
 
-        if (t < 1) {
-          requestAnimationFrame(tick);
-        } else {
+          // Shift remaining sprites toward new positions
+          shiftIdx = 0;
+          for (let i = 0; i < oldSprites.length; i++) {
+            if (i === removedIdx) continue;
+            const sp = oldSprites[i];
+            if (!sp || !sp.position) { shiftIdx++; continue; }
+            const fp = fromPositions[shiftIdx];
+            const tp = toPosList[shiftIdx];
+            if (fp && tp) {
+              sp.position.x = fp.x + (tp.x - fp.x) * e;
+              sp.position.y = fp.y + (tp.y - fp.y) * e;
+            }
+            shiftIdx++;
+          }
+        },
+        onComplete: () => {
           // Guard: if hand was re-rendered, our sprites array is stale — bail out.
           if (this.handSprites[pid] !== spritesArrayRef) {
             resolve();
@@ -159,9 +159,8 @@ class HandRenderer {
 
           if (onComplete) onComplete();
           resolve();
-        }
-      };
-      requestAnimationFrame(tick);
+        },
+      });
     });
   }
 
@@ -484,30 +483,35 @@ class HandRenderer {
     const bobSpeed = 1.5;
 
     let _cancelAnim = false;
+    let _hoverTween = null;
     const _animateHover = (targetScale, offset) => {
       _cancelAnim = false;
+      if (_hoverTween) { _hoverTween.kill(); _hoverTween = null; }
       const fromS = sprite.scale.x;
       const fromX = sprite.position.x;
       const fromY = sprite.position.y;
       const toS = targetScale;
       const toX = sprite._basePosX + offset.x;
       const toY = sprite._basePosY + offset.y;
-      const dur = 180;
-      const t0 = performance.now();
-      const step = () => {
-        if (_cancelAnim) return;
-        const t = Math.min((performance.now() - t0) / dur, 1);
-        const e = easeOutQuad(t);
-        sprite.scale.set(fromS + (toS - fromS) * e);
-        sprite.position.x = fromX + (toX - fromX) * e;
-        sprite.position.y = fromY + (toY - fromY) * e;
-        if (t < 1) requestAnimationFrame(step);
-        else {
+      const _proxy = { t: 0 };
+
+      _hoverTween = gsap.to(_proxy, {
+        t: 1,
+        duration: 0.18,
+        ease: 'power2.out',
+        onUpdate: () => {
+          if (_cancelAnim) return;
+          const e = _proxy.t;
+          sprite.scale.set(fromS + (toS - fromS) * e);
+          sprite.position.x = fromX + (toX - fromX) * e;
+          sprite.position.y = fromY + (toY - fromY) * e;
+        },
+        onComplete: () => {
           sprite.scale.set(toS);
           sprite.position.set(toX, toY);
-        }
-      };
-      requestAnimationFrame(step);
+          _hoverTween = null;
+        },
+      });
     };
 
     let _bobId = null;

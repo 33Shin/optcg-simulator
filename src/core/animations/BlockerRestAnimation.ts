@@ -1,11 +1,11 @@
-import { easeOutCubic } from './utils';
+import { gsap } from 'gsap';
 
 class BlockerRestAnimation {
   static requires = ['app', 'renderer'];
 
   constructor(ctx) {
     this.ctx = ctx;
-    this._rafId = null;
+    this._tween = null;
     this._ghost = null;
     this._sprite = null;
   }
@@ -64,82 +64,79 @@ class BlockerRestAnimation {
     const shakeIntensity = 10;
     const total = liftDur + slamDur + impactDur + bounceDur;
 
-    const start = performance.now();
     const origStageX = app.stage.position.x;
     const origStageY = app.stage.position.y;
 
     return new Promise((resolve) => {
-      let cancelled = false;
-      const tick = (now) => {
-        if (cancelled) return;
-        const elapsed = now - start;
-        const t = Math.min(elapsed / total, 1);
+      const _p = { t: 0 };
+      this._tween = gsap.to(_p, {
+        t: 1,
+        duration: total / 1000,
+        ease: 'none',
+        onUpdate: () => {
+          const t = _p.t;
 
-        if (t < liftDur / total) {
-          const p = elapsed / liftDur;
-          const e = easeOutCubic(p);
-          ghost.position.y = origY - liftDistance * e;
-          ghost.scale.set(origScale * (1 + 0.3 * e), origScale * (1 + 0.3 * e));
-          ghost.rotation = origRotation + (restAngle - origRotation) * e;
-        }
-        else if (t < (liftDur + slamDur) / total) {
-          const p = (elapsed - liftDur) / slamDur;
-          const e = p * p * p;
-          ghost.position.y = origY - liftDistance + (liftDistance + slamOvershoot) * e;
-          ghost.scale.set(
-            origScale * 1.3 - e * 0.3,
-            origScale * 1.3 - e * 0.3
-          );
-        }
-        else if (t < (liftDur + slamDur + impactDur) / total) {
-          ghost.scale.set(origScale * 1.15, origScale * 0.85);
-          ghost.position.y = origY + slamOvershoot * 0.1;
-          app.stage.position.x = origStageX + (Math.random() - 0.5) * shakeIntensity * 2.5;
-          app.stage.position.y = origStageY + (Math.random() - 0.5) * shakeIntensity * 2.5;
-        }
-        else {
-          const p = (elapsed - liftDur - slamDur - impactDur) / bounceDur;
-          const decay = Math.pow(1 - p, 2);
-
-          const angle = p * Math.PI * bounceCount * 2;
-          const scaleBounce = 1 + Math.sin(angle) * decay * 0.08;
-          ghost.position.y = origY;
-          ghost.scale.set(origScale * scaleBounce, origScale * scaleBounce);
-
-          const shakeDecay = Math.pow(1 - Math.min(p, 1), 1.5) * (300 / bounceDur);
-          const effectiveShake = shakeIntensity * Math.max(0, shakeDecay);
-          app.stage.position.x = origStageX + (Math.random() - 0.5) * effectiveShake;
-          app.stage.position.y = origStageY + (Math.random() - 0.5) * effectiveShake;
-
-          if (p >= 1) {
-            cancelled = true;
-            ghost.position.set(origX, origY);
-            ghost.rotation = restAngle;
-            ghost.scale.set(origScale, origScale);
-            app.stage.position.x = origStageX;
-            app.stage.position.y = origStageY;
-
-            if (ghost.parent) ghost.parent.removeChild(ghost);
-            sprite.visible = true;
-            sprite.rotation = restAngle;
-            this._rafId = null;
-            this._ghost = null;
-            this._sprite = null;
-            resolve();
-            return;
+          if (t < liftDur / total) {
+            const p = t / (liftDur / total);
+            const e = 1 - Math.pow(1 - p, 3);
+            ghost.position.y = origY - liftDistance * e;
+            ghost.scale.set(origScale * (1 + 0.3 * e), origScale * (1 + 0.3 * e));
+            ghost.rotation = origRotation + (restAngle - origRotation) * e;
           }
-        }
-        this._rafId = requestAnimationFrame(tick);
-      };
-      this._rafId = requestAnimationFrame(tick);
+          else if (t < (liftDur + slamDur) / total) {
+            const p = (t - liftDur / total) / (slamDur / total);
+            const e = p * p * p;
+            ghost.position.y = origY - liftDistance + (liftDistance + slamOvershoot) * e;
+            ghost.scale.set(
+              origScale * 1.3 - e * 0.3,
+              origScale * 1.3 - e * 0.3
+            );
+          }
+          else if (t < (liftDur + slamDur + impactDur) / total) {
+            ghost.scale.set(origScale * 1.15, origScale * 0.85);
+            ghost.position.y = origY + slamOvershoot * 0.1;
+            app.stage.position.x = origStageX + (Math.random() - 0.5) * shakeIntensity * 2.5;
+            app.stage.position.y = origStageY + (Math.random() - 0.5) * shakeIntensity * 2.5;
+          }
+          else {
+            const p = (t - (liftDur + slamDur + impactDur) / total) / (bounceDur / total);
+            const decay = Math.pow(1 - p, 2);
+
+            const angle = p * Math.PI * bounceCount * 2;
+            const scaleBounce = 1 + Math.sin(angle) * decay * 0.08;
+            ghost.position.y = origY;
+            ghost.scale.set(origScale * scaleBounce, origScale * scaleBounce);
+
+            const shakeDecay = Math.pow(1 - Math.min(p, 1), 1.5) * (300 / bounceDur);
+            const effectiveShake = shakeIntensity * Math.max(0, shakeDecay);
+            app.stage.position.x = origStageX + (Math.random() - 0.5) * effectiveShake;
+            app.stage.position.y = origStageY + (Math.random() - 0.5) * effectiveShake;
+          }
+        },
+        onComplete: () => {
+          ghost.position.set(origX, origY);
+          ghost.rotation = restAngle;
+          ghost.scale.set(origScale, origScale);
+          app.stage.position.x = origStageX;
+          app.stage.position.y = origStageY;
+
+          if (ghost.parent) ghost.parent.removeChild(ghost);
+          sprite.visible = true;
+          sprite.rotation = restAngle;
+          this._tween = null;
+          this._ghost = null;
+          this._sprite = null;
+          resolve();
+        },
+      });
     });
   }
 
   /** Cancel in-flight blocker rest animation. */
   cancel() {
-    if (this._rafId != null) {
-      cancelAnimationFrame(this._rafId);
-      this._rafId = null;
+    if (this._tween) {
+      this._tween.kill();
+      this._tween = null;
     }
     if (this._ghost && this._ghost.parent) {
       this._ghost.parent.removeChild(this._ghost);

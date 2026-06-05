@@ -1,4 +1,4 @@
-import { Animator } from '../Animator';
+import { gsap } from 'gsap';
 
 class CounterCardAnimation {
   static requires = ['app'];
@@ -7,13 +7,6 @@ class CounterCardAnimation {
     this.ctx = ctx;
   }
 
-  /**
-   * Counter card burst VFX: expanding card image, screen shake, golden flash.
-   * @param {PIXI.Container} targetZone - The zone containing the target card sprite
-   * @param {object} counterCard - The counter card data (with imgPath)
-   * @param {number} duration - Animation duration in ms
-   * @returns {Promise<void>}
-   */
   animate(targetZone, counterCard, duration = 400) {
     if (!targetZone) return Promise.resolve();
     const { app } = this.ctx;
@@ -56,33 +49,39 @@ class CounterCardAnimation {
     const origStageX = app.stage.position.x;
     const origStageY = app.stage.position.y;
 
-    return Animator.animate({
-      duration,
-      easing: 'easeOutQuad',
-      onUpdate: (t) => {
-        burstSprite.scale.set(baseScale * (2 + 6 * t));
-        burstSprite.alpha = Math.max(0, 0.8 * (1 - t));
+    return new Promise((resolve) => {
+      const proxy = { t: 0 };
+      gsap.to(proxy, {
+        t: 1,
+        duration: duration / 1000,
+        ease: 'power2.out',
+        onUpdate: () => {
+          const t = proxy.t;
+          burstSprite.scale.set(baseScale * (2 + 6 * t));
+          burstSprite.alpha = Math.max(0, 0.8 * (1 - t));
 
-        const shakeAmt = 10 * Math.max(0, 1 - t * 2);
-        app.stage.position.x = origStageX + (Math.random() - 0.5) * shakeAmt;
-        app.stage.position.y = origStageY + (Math.random() - 0.5) * shakeAmt;
+          const shakeAmt = 10 * Math.max(0, 1 - t * 2);
+          app.stage.position.x = origStageX + (Math.random() - 0.5) * shakeAmt;
+          app.stage.position.y = origStageY + (Math.random() - 0.5) * shakeAmt;
 
-        screenFlashGraphics.clear();
-        const flashAlpha = 0.3 * Math.max(0, 1 - t * 2);
-        if (flashAlpha > 0) {
-          screenFlashGraphics.rect(0, 0, app.screen.width, app.screen.height)
-              .fill({ color: 0xffd700, alpha: flashAlpha });
-        }
-      },
-      onComplete: () => {
-        app.stage.position.x = origStageX;
-        app.stage.position.y = origStageY;
-        burstSprite.alpha = 0;
-        screenFlashGraphics.clear();
-        if (burstSprite.parent) burstSprite.parent.removeChild(burstSprite);
-        if (screenFlashGraphics.parent) screenFlashGraphics.parent.removeChild(screenFlashGraphics);
-      },
-    }).toPromise();
+          screenFlashGraphics.clear();
+          const flashAlpha = 0.3 * Math.max(0, 1 - t * 2);
+          if (flashAlpha > 0) {
+            screenFlashGraphics.rect(0, 0, app.screen.width, app.screen.height)
+                .fill({ color: 0xffd700, alpha: flashAlpha });
+          }
+        },
+        onComplete: () => {
+          app.stage.position.x = origStageX;
+          app.stage.position.y = origStageY;
+          burstSprite.alpha = 0;
+          screenFlashGraphics.clear();
+          if (burstSprite.parent) burstSprite.parent.removeChild(burstSprite);
+          if (screenFlashGraphics.parent) screenFlashGraphics.parent.removeChild(screenFlashGraphics);
+          resolve();
+        },
+      });
+    });
   }
 }
 

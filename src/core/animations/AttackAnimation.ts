@@ -1,3 +1,4 @@
+import { gsap } from 'gsap';
 import { makeFlyCard, easeOutCubic, easeInOut } from './utils';
 
 const cardW = 100;
@@ -71,7 +72,7 @@ export default class AttackAnimation {
     const attackerFlyCard = makeFlyCard(atkTexture, attacker, atkW, atkH);
     attackerFlyCard.name = 'attackerFlyCard';
     attackerFlyCard.position.copyFrom(atkPos);
-    attackerFlyCard.alpha = 0; // Start invisible, shown when lift animation begins
+    attackerFlyCard.alpha = 0;
     app.stage.addChild(attackerFlyCard);
 
     // Power text overlay (matches CardRenderer.setPowerBadge style)
@@ -192,27 +193,25 @@ export default class AttackAnimation {
     if (!state) return null;
     this._attackAnimState = state;
 
-    // Ghost stays invisible until lift tick loop starts moving it
-    const liftDur = 350;
-    const start = performance.now();
-
+    // GSAP: power3.out matches easeOutCubic, 350ms
     await new Promise((resolve) => {
-      const tick = (now) => {
-        const elapsed = now - start;
-        if (elapsed < liftDur) {
-          const p = elapsed / liftDur;
-          const e = easeOutCubic(p);
+      const _p = { t: 0 };
+      gsap.to(_p, {
+        t: 1,
+        duration: 0.35,
+        ease: 'power3.out',
+        onUpdate: () => {
+          const e = _p.t;
           state.attackerFlyCard.alpha = 1;
           state.attackerFlyCard.scale.set(1 + 0.4 * e, 1 + 0.4 * e);
           state.attackerFlyCard.rotation = state.attackRotation * e;
-          requestAnimationFrame(tick);
-        } else {
+        },
+        onComplete: () => {
           state.attackerFlyCard.scale.set(1.4, 1.4);
           state.attackerFlyCard.rotation = state.attackRotation;
           resolve();
-        }
-      };
-      requestAnimationFrame(tick);
+        },
+      });
     });
 
     // Start floating animation on held card during counter phase
@@ -272,47 +271,37 @@ export default class AttackAnimation {
     const newImpactX = newDefPos.x - nnx * (tgtH / 2);
     const newImpactY = newDefPos.y - nny * (tgtH / 2);
 
-    // Animate rotation and position shift toward new target
-    const dur = 400;
-    const start = performance.now();
     const oldRotation = state.attackRotation;
     const oldNx = state.nx;
     const oldNy = state.ny;
     const oldImpactX = state.impactX;
     const oldImpactY = state.impactY;
 
+    // GSAP: sine.inOut matches easeInOut, 400ms
     await new Promise((resolve) => {
-      const tick = (now) => {
-        const elapsed = now - start;
-        const p = Math.min(elapsed / dur, 1);
-        const e = easeInOut(p);
-
-        // Interpolate rotation toward new target direction
-        state.attackRotation = oldRotation + (newRotation - oldRotation) * e;
-        state.attackerFlyCard.rotation = state.attackRotation;
-
-        // Interpolate direction vector for bob animation
-        state.nx = oldNx + (nnx - oldNx) * e;
-        state.ny = oldNy + (nny - oldNy) * e;
-
-        // Shift impact point toward new target
-        state.impactX = oldImpactX + (newImpactX - oldImpactX) * e;
-        state.impactY = oldImpactY + (newImpactY - oldImpactY) * e;
-
-        if (p < 1) {
-          requestAnimationFrame(tick);
-        } else {
-          // Update all target references for later attack phases
+      const _p = { t: 0 };
+      gsap.to(_p, {
+        t: 1,
+        duration: 0.4,
+        ease: 'sine.inOut',
+        onUpdate: () => {
+          const e = _p.t;
+          state.attackRotation = oldRotation + (newRotation - oldRotation) * e;
+          state.attackerFlyCard.rotation = state.attackRotation;
+          state.nx = oldNx + (nnx - oldNx) * e;
+          state.ny = oldNy + (nny - oldNy) * e;
+          state.impactX = oldImpactX + (newImpactX - oldImpactX) * e;
+          state.impactY = oldImpactY + (newImpactY - oldImpactY) * e;
+        },
+        onComplete: () => {
           state.defPos.copyFrom(newDefPos);
           state.targetZone = newTargetZone;
-          // Reposition static effect graphics to new defender position
           for (const ring of state.shockwaveRings) ring.position.copyFrom(newDefPos);
           state.glowAuraGraphics.position.copyFrom(newDefPos);
           state.impactBurstGraphics.position.copyFrom(newDefPos);
           resolve();
-        }
-      };
-      requestAnimationFrame(tick);
+        },
+      });
     });
   }
 
@@ -331,197 +320,204 @@ export default class AttackAnimation {
     const returnDur = 700;
     const totalAfterLift = pullBackDur + slamDur + impactDur + shockDur + returnDur;
 
-    const start = performance.now();
-    const afterImpactStart = pullBackDur + slamDur + impactDur;
-
+    // GSAP proxy drives all 5 remaining phases
     await new Promise((resolve) => {
-      const tick = (now) => {
-        const elapsed = now - start;
+      const start = performance.now();
+      const afterImpactStart = pullBackDur + slamDur + impactDur;
 
-        // === Phase 2: Pull back ===
-        if (elapsed < pullBackDur) {
-          const p = easeInOut(elapsed / pullBackDur);
-          state.attackerFlyCard.x = state.atkPos.x - state.nx * 100 * p;
-          state.attackerFlyCard.y = state.atkPos.y - state.ny * 100 * p;
-          state.attackerFlyCard.rotation = state.attackRotation;
-          requestAnimationFrame(tick);
-          return;
-        }
+      const _p = { t: 0 };
+      gsap.to(_p, {
+        t: 1,
+        duration: totalAfterLift / 1000,
+        ease: 'none',
+        onUpdate: () => {
+          const elapsed = (performance.now() - start);
+          const t = _p.t;
 
-        // === Phase 3: Slam ===
-        if (elapsed < pullBackDur + slamDur) {
-          const p = ((elapsed - pullBackDur) / slamDur) ** 2;
-          const sx = state.atkPos.x - state.nx * 100;
-          const sy = state.atkPos.y - state.ny * 100;
-          state.attackerFlyCard.x = sx + (state.impactX - sx) * p;
-          state.attackerFlyCard.y = sy + (state.impactY - sy) * p;
-          state.attackerFlyCard.scale.set(1.4, 1.4);
-          state.attackerFlyCard.rotation = state.attackRotation;
-          requestAnimationFrame(tick);
-          return;
-        }
-
-        // === Phase 4: Impact ===
-        if (elapsed < afterImpactStart) {
-          const p = (elapsed - pullBackDur - slamDur) / impactDur;
-          state.attackerFlyCard.x = state.impactX;
-          state.attackerFlyCard.y = state.impactY;
-          state.attackerFlyCard.rotation = state.attackRotation;
-          const squash = 1 + 0.5 * Math.sin(p * Math.PI);
-          state.attackerFlyCard.scale.set(1.6 / squash, 1.6 * squash);
-
-          const shakeAmt = 22 * (1 - p);
-          state.app.stage.position.x = state.origStageX + (Math.random() - 0.5) * shakeAmt;
-          state.app.stage.position.y = state.origStageY + (Math.random() - 0.5) * shakeAmt;
-
-          state.screenFlashGraphics.clear();
-          state.screenFlashGraphics.rect(0, 0, state.app.screen.width, state.app.screen.height)
-            .fill({ color: 0xffffff, alpha: 0.85 * (1 - p) });
-          state.screenFlashGraphics.alpha = 1;
-
-          state.impactBurstGraphics.clear();
-          const burstR = 10 + 60 * Math.sin(p * Math.PI);
-          state.impactBurstGraphics.circle(0, 0, burstR).fill({ color: 0xffffaa, alpha: 0.9 * (1 - p) });
-          state.impactBurstGraphics.circle(0, 0, burstR * 0.5).fill({ color: 0xffffff, alpha: 0.95 * (1 - p) });
-          state.impactBurstGraphics.alpha = 1;
-
-          for (let i = 0; i < 6; i++) {
-            const g = state.lightningBolts[i];
-            g.clear();
-            const baseAngle = (Math.PI * 2 * i) / 6 + Math.sin(p * Math.PI) * 0.5;
-            const dist = 120 + 80 * Math.sin(p * Math.PI);
-            const segs = generateLightningSegments(0, 0, Math.cos(baseAngle) * dist, Math.sin(baseAngle) * dist, 8, 25 * (1 - p));
-            const la = 0.8 * (1 - p);
-            g.moveTo(segs[0].x, segs[0].y);
-            for (let s = 1; s < segs.length; s++) g.lineTo(segs[s].x, segs[s].y);
-            g.stroke({ width: 6, color: 0x445588, alpha: la * 0.4 });
-            g.moveTo(segs[0].x, segs[0].y);
-            for (let s = 1; s < segs.length; s++) g.lineTo(segs[s].x, segs[s].y);
-            g.stroke({ width: 2, color: 0xaabbff, alpha: la * 1.2 });
-            g.alpha = 1;
+          // === Phase 2: Pull back ===
+          if (elapsed < pullBackDur) {
+            const p = easeInOut(elapsed / pullBackDur);
+            state.attackerFlyCard.x = state.atkPos.x - state.nx * 100 * p;
+            state.attackerFlyCard.y = state.atkPos.y - state.ny * 100 * p;
+            state.attackerFlyCard.rotation = state.attackRotation;
+            return;
           }
 
-          state.glowAuraGraphics.clear();
-          const glowR = 40 + 80 * Math.sin(p * Math.PI);
-          for (let r = glowR; r > 0; r -= 8) {
-            const ga = 0.3 * (1 - p) * (1 - r / (glowR + 10));
-            state.glowAuraGraphics.circle(0, 0, r).stroke({ width: 8, color: 0xff6600, alpha: ga });
+          // === Phase 3: Slam ===
+          if (elapsed < pullBackDur + slamDur) {
+            const p = ((elapsed - pullBackDur) / slamDur) ** 2;
+            const sx = state.atkPos.x - state.nx * 100;
+            const sy = state.atkPos.y - state.ny * 100;
+            state.attackerFlyCard.x = sx + (state.impactX - sx) * p;
+            state.attackerFlyCard.y = sy + (state.impactY - sy) * p;
+            state.attackerFlyCard.scale.set(1.4, 1.4);
+            state.attackerFlyCard.rotation = state.attackRotation;
+            return;
           }
-          state.glowAuraGraphics.alpha = 1;
 
-          requestAnimationFrame(tick);
-          return;
-        }
+          // === Phase 4: Impact ===
+          if (elapsed < afterImpactStart) {
+            const p = (elapsed - pullBackDur - slamDur) / impactDur;
+            state.attackerFlyCard.x = state.impactX;
+            state.attackerFlyCard.y = state.impactY;
+            state.attackerFlyCard.rotation = state.attackRotation;
+            const squash = 1 + 0.5 * Math.sin(p * Math.PI);
+            state.attackerFlyCard.scale.set(1.6 / squash, 1.6 * squash);
 
-        // === Phase 5: Bounce back + shockwave + sparks ===
-        if (elapsed < afterImpactStart + shockDur) {
-          const bounceElapsed = elapsed - afterImpactStart;
-          const bounceP = Math.min(bounceElapsed / bounceBackDur, 1);
-          const shockP = easeOutCubic(bounceElapsed / shockDur);
+            const shakeAmt = 22 * (1 - p);
+            state.app.stage.position.x = state.origStageX + (Math.random() - 0.5) * shakeAmt;
+            state.app.stage.position.y = state.origStageY + (Math.random() - 0.5) * shakeAmt;
 
-          state.attackerFlyCard.x = state.impactX - state.nx * easeOutCubic(bounceP) * 180;
-          state.attackerFlyCard.y = state.impactY - state.ny * easeOutCubic(bounceP) * 180;
-          state.attackerFlyCard.rotation = state.attackRotation;
-          state.attackerFlyCard.scale.set(1.4 - 0.3 * easeOutCubic(bounceP), 1.4 - 0.3 * easeOutCubic(bounceP));
+            state.screenFlashGraphics.clear();
+            state.screenFlashGraphics.rect(0, 0, state.app.screen.width, state.app.screen.height)
+              .fill({ color: 0xffffff, alpha: 0.85 * (1 - p) });
+            state.screenFlashGraphics.alpha = 1;
 
-          for (let i = 0; i < state.shockwaveRings.length; i++) {
-            const ring = state.shockwaveRings[i];
-            const stagger = i * 0.08;
-            const rp = Math.max(0, Math.min((shockP - stagger) / (1 - stagger), 1));
-            ring.clear();
-            const radius = rp * rp * 280;
-            const thickness = Math.max(0.5, 6 * (1 - rp));
-            const alpha = Math.max(0, (1 - rp * 1.2) * 0.8);
-            ring.circle(0, 0, radius).stroke({ width: thickness, color: 0xffffff, alpha });
-            if (radius > 10) {
-              ring.circle(0, 0, radius * 0.92).stroke({ width: thickness * 0.3, color: 0xffffdd, alpha: alpha * 0.4 });
+            state.impactBurstGraphics.clear();
+            const burstR = 10 + 60 * Math.sin(p * Math.PI);
+            state.impactBurstGraphics.circle(0, 0, burstR).fill({ color: 0xffffaa, alpha: 0.9 * (1 - p) });
+            state.impactBurstGraphics.circle(0, 0, burstR * 0.5).fill({ color: 0xffffff, alpha: 0.95 * (1 - p) });
+            state.impactBurstGraphics.alpha = 1;
+
+            for (let i = 0; i < 6; i++) {
+              const g = state.lightningBolts[i];
+              g.clear();
+              const baseAngle = (Math.PI * 2 * i) / 6 + Math.sin(p * Math.PI) * 0.5;
+              const dist = 120 + 80 * Math.sin(p * Math.PI);
+              const segs = generateLightningSegments(0, 0, Math.cos(baseAngle) * dist, Math.sin(baseAngle) * dist, 8, 25 * (1 - p));
+              const la = 0.8 * (1 - p);
+              g.moveTo(segs[0].x, segs[0].y);
+              for (let s = 1; s < segs.length; s++) g.lineTo(segs[s].x, segs[s].y);
+              g.stroke({ width: 6, color: 0x445588, alpha: la * 0.4 });
+              g.moveTo(segs[0].x, segs[0].y);
+              for (let s = 1; s < segs.length; s++) g.lineTo(segs[s].x, segs[s].y);
+              g.stroke({ width: 2, color: 0xaabbff, alpha: la * 1.2 });
+              g.alpha = 1;
             }
-            ring.alpha = 1;
-          }
 
-          for (let i = 0; i < state.numParticles; i++) {
-            const g = state.impactParticles[i];
-            const angle = (2 * Math.PI * i) / state.numParticles + 0.3 * shockP;
-            const speed = (80 + 150 * easeOutCubic(shockP)) * (0.5 + 0.5 * ((i % 3) / 3));
-            g.clear();
-            g.position.set(state.defPos.x + Math.cos(angle) * speed, state.defPos.y + Math.sin(angle) * speed);
-            const fadeOut = Math.max(0, 1 - shockP * shockP * 1.5);
-            g.circle(0, 0, Math.max(0.5, 4 * fadeOut)).fill({ color: 0xffffcc, alpha: fadeOut * 0.9 });
-            g.alpha = 1;
-          }
-
-          for (let i = 0; i < state.numSparks; i++) {
-            const g = state.fireSparks[i];
-            const sd = state.sparkData[i];
-            const t = bounceElapsed / 1000;
-            const sparkAlpha = Math.max(0, 1 - t / sd.life);
-            if (sparkAlpha * sparkAlpha <= 0) continue;
-            g.position.set(state.defPos.x + sd.vx * t, state.defPos.y + sd.vy * t + 0.5 * sd.grav * t * t - 20 * t);
-            g.clear();
-            g.rect(-sd.size * sparkAlpha, -sd.size * sparkAlpha, sd.size * 2 * sparkAlpha, sd.size * 3 * sparkAlpha)
-              .fill({ color: sd.color, alpha: sparkAlpha * sparkAlpha * 0.9 });
-            g.alpha = 1;
-            g.rotation = t * 2;
-          }
-
-          for (let i = 0; i < 6; i++) {
-            const g = state.lightningBolts[i];
-            if (shockP > 0.45) { g.clear(); g.alpha = 0; continue; }
-            g.clear();
-            if (Math.random() > 0.15 + shockP * 0.3) continue;
-            const baseAngle = (Math.PI * 2 * i) / 6 + Math.random() * 0.5;
-            const dist = 100 + 150 * (1 - shockP);
-            const segs = generateLightningSegments(0, 0, Math.cos(baseAngle) * dist, Math.sin(baseAngle) * dist, 10, 30 * (1 - shockP));
-            const la = 0.8 * (1 - shockP * 1.5);
-            g.moveTo(segs[0].x, segs[0].y);
-            for (let s = 1; s < segs.length; s++) g.lineTo(segs[s].x, segs[s].y);
-            g.stroke({ width: 6, color: 0x222244, alpha: la * 0.6 });
-            g.moveTo(segs[0].x, segs[0].y);
-            for (let s = 1; s < segs.length; s++) g.lineTo(segs[s].x, segs[s].y);
-            g.stroke({ width: 2, color: 0x8888ff, alpha: la * 1.2 });
-            g.alpha = 1;
-          }
-
-          if (shockP < 0.7) {
             state.glowAuraGraphics.clear();
-            const glowR = 80 * (1 - shockP / 0.7);
-            for (let r = glowR; r > 5; r -= 10) {
-              state.glowAuraGraphics.circle(0, 0, r).stroke({ width: 10, color: 0xff4400, alpha: 0.25 * (1 - r / glowR) * (1 - shockP / 0.7) });
+            const glowR = 40 + 80 * Math.sin(p * Math.PI);
+            for (let r = glowR; r > 0; r -= 8) {
+              const ga = 0.3 * (1 - p) * (1 - r / (glowR + 10));
+              state.glowAuraGraphics.circle(0, 0, r).stroke({ width: 8, color: 0xff6600, alpha: ga });
             }
             state.glowAuraGraphics.alpha = 1;
-          } else {
-            state.glowAuraGraphics.clear();
-            state.glowAuraGraphics.alpha = 0;
+
+            return;
           }
 
-          const shakeAmt = 14 * (1 - shockP);
-          state.app.stage.position.x = state.origStageX + (Math.random() - 0.5) * shakeAmt;
-          state.app.stage.position.y = state.origStageY + (Math.random() - 0.5) * shakeAmt;
-          state.impactBurstGraphics.clear();
-          state.impactBurstGraphics.alpha = 0;
+          // === Phase 5: Bounce back + shockwave + sparks ===
+          if (elapsed < afterImpactStart + shockDur) {
+            const bounceElapsed = elapsed - afterImpactStart;
+            const bounceP = Math.min(bounceElapsed / bounceBackDur, 1);
+            const shockP = easeOutCubic(bounceElapsed / shockDur);
 
-          requestAnimationFrame(tick);
-          return;
-        }
+            state.attackerFlyCard.x = state.impactX - state.nx * easeOutCubic(bounceP) * 180;
+            state.attackerFlyCard.y = state.impactY - state.ny * easeOutCubic(bounceP) * 180;
+            state.attackerFlyCard.rotation = state.attackRotation;
+            state.attackerFlyCard.scale.set(1.4 - 0.3 * easeOutCubic(bounceP), 1.4 - 0.3 * easeOutCubic(bounceP));
 
-        // === Phase 6: Fly back ===
-        if (elapsed < totalAfterLift) {
-          const p = easeInOut((elapsed - afterImpactStart - shockDur) / returnDur);
-          state.attackerFlyCard.x = (state.impactX - state.nx * 180) + (state.atkPos.x - state.impactX + state.nx * 180) * p;
-          state.attackerFlyCard.y = (state.impactY - state.ny * 180) + (state.atkPos.y - state.impactY + state.ny * 180) * p;
-          state.attackerFlyCard.rotation = state.attackRotation + (Math.PI / 2 - state.attackRotation) * p;
-          state.attackerFlyCard.scale.set(1.1 - 0.1 * p, 1.1 - 0.1 * p);
-          state.app.stage.position.x = state.origStageX;
-          state.app.stage.position.y = state.origStageY;
-          requestAnimationFrame(tick);
-          return;
-        }
+            for (let i = 0; i < state.shockwaveRings.length; i++) {
+              const ring = state.shockwaveRings[i];
+              const stagger = i * 0.08;
+              const rp = Math.max(0, Math.min((shockP - stagger) / (1 - stagger), 1));
+              ring.clear();
+              const radius = rp * rp * 280;
+              const thickness = Math.max(0.5, 6 * (1 - rp));
+              const alpha = Math.max(0, (1 - rp * 1.2) * 0.8);
+              ring.circle(0, 0, radius).stroke({ width: thickness, color: 0xffffff, alpha });
+              if (radius > 10) {
+                ring.circle(0, 0, radius * 0.92).stroke({ width: thickness * 0.3, color: 0xffffdd, alpha: alpha * 0.4 });
+              }
+              ring.alpha = 1;
+            }
 
-        // === Cleanup ===
-        this._cleanupAttackAnim(state);
-        resolve();
-      };
-      requestAnimationFrame(tick);
+            for (let i = 0; i < state.numParticles; i++) {
+              const g = state.impactParticles[i];
+              const angle = (2 * Math.PI * i) / state.numParticles + 0.3 * shockP;
+              const speed = (80 + 150 * easeOutCubic(shockP)) * (0.5 + 0.5 * ((i % 3) / 3));
+              g.clear();
+              g.position.set(state.defPos.x + Math.cos(angle) * speed, state.defPos.y + Math.sin(angle) * speed);
+              const fadeOut = Math.max(0, 1 - shockP * shockP * 1.5);
+              g.circle(0, 0, Math.max(0.5, 4 * fadeOut)).fill({ color: 0xffffcc, alpha: fadeOut * 0.9 });
+              g.alpha = 1;
+            }
+
+            for (let i = 0; i < state.numSparks; i++) {
+              const g = state.fireSparks[i];
+              const sd = state.sparkData[i];
+              const t = bounceElapsed / 1000;
+              const sparkAlpha = Math.max(0, 1 - t / sd.life);
+              if (sparkAlpha * sparkAlpha <= 0) continue;
+              g.position.set(state.defPos.x + sd.vx * t, state.defPos.y + sd.vy * t + 0.5 * sd.grav * t * t - 20 * t);
+              g.clear();
+              g.rect(-sd.size * sparkAlpha, -sd.size * sparkAlpha, sd.size * 2 * sparkAlpha, sd.size * 3 * sparkAlpha)
+                .fill({ color: sd.color, alpha: sparkAlpha * sparkAlpha * 0.9 });
+              g.alpha = 1;
+              g.rotation = t * 2;
+            }
+
+            for (let i = 0; i < 6; i++) {
+              const g = state.lightningBolts[i];
+              if (shockP > 0.45) { g.clear(); g.alpha = 0; continue; }
+              g.clear();
+              if (Math.random() > 0.15 + shockP * 0.3) continue;
+              const baseAngle = (Math.PI * 2 * i) / 6 + Math.random() * 0.5;
+              const dist = 100 + 150 * (1 - shockP);
+              const segs = generateLightningSegments(0, 0, Math.cos(baseAngle) * dist, Math.sin(baseAngle) * dist, 10, 30 * (1 - shockP));
+              const la = 0.8 * (1 - shockP * 1.5);
+              g.moveTo(segs[0].x, segs[0].y);
+              for (let s = 1; s < segs.length; s++) g.lineTo(segs[s].x, segs[s].y);
+              g.stroke({ width: 6, color: 0x222244, alpha: la * 0.6 });
+              g.moveTo(segs[0].x, segs[0].y);
+              for (let s = 1; s < segs.length; s++) g.lineTo(segs[s].x, segs[s].y);
+              g.stroke({ width: 2, color: 0x8888ff, alpha: la * 1.2 });
+              g.alpha = 1;
+            }
+
+            if (shockP < 0.7) {
+              state.glowAuraGraphics.clear();
+              const glowR = 80 * (1 - shockP / 0.7);
+              for (let r = glowR; r > 5; r -= 10) {
+                state.glowAuraGraphics.circle(0, 0, r).stroke({ width: 10, color: 0xff4400, alpha: 0.25 * (1 - r / glowR) * (1 - shockP / 0.7) });
+              }
+              state.glowAuraGraphics.alpha = 1;
+            } else {
+              state.glowAuraGraphics.clear();
+              state.glowAuraGraphics.alpha = 0;
+            }
+
+            const shakeAmt = 14 * (1 - shockP);
+            state.app.stage.position.x = state.origStageX + (Math.random() - 0.5) * shakeAmt;
+            state.app.stage.position.y = state.origStageY + (Math.random() - 0.5) * shakeAmt;
+            state.impactBurstGraphics.clear();
+            state.impactBurstGraphics.alpha = 0;
+
+            return;
+          }
+
+          // === Phase 6: Fly back ===
+          if (elapsed < totalAfterLift) {
+            const p = easeInOut((elapsed - afterImpactStart - shockDur) / returnDur);
+            state.attackerFlyCard.x = (state.impactX - state.nx * 180) + (state.atkPos.x - state.impactX + state.nx * 180) * p;
+            state.attackerFlyCard.y = (state.impactY - state.ny * 180) + (state.atkPos.y - state.impactY + state.ny * 180) * p;
+            state.attackerFlyCard.rotation = state.attackRotation + (Math.PI / 2 - state.attackRotation) * p;
+            state.attackerFlyCard.scale.set(1.1 - 0.1 * p, 1.1 - 0.1 * p);
+            state.app.stage.position.x = state.origStageX;
+            state.app.stage.position.y = state.origStageY;
+            return;
+          }
+
+           // === Cleanup ===
+           this._cleanupAttackAnim(state);
+           resolve();
+        },
+        onComplete: () => {
+          // Safety net: ensure cleanup runs even if elapsed timing drifts
+          this._cleanupAttackAnim(state);
+          resolve();
+        },
+      });
     });
   }
 

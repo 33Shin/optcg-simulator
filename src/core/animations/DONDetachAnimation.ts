@@ -44,11 +44,13 @@ class DONDetachAnimation {
     if (targets.length === 0) return;
 
     await new Promise((resolve) => {
-      gsap.to({}, {
+      const _p = { p: 0 };
+      gsap.to(_p, {
+        p: 1,
         duration,
         ease: 'none',
-        onUpdate: function () {
-          const p = this.progress();
+        onUpdate: () => {
+          const p = _p.p;
 
           for (const { powerText, card } of targets) {
             const basePower = card.power || 0;

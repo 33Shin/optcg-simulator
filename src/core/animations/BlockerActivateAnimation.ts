@@ -1,3 +1,4 @@
+import { gsap } from 'gsap';
 import { makeFlyCard } from './utils';
 
 class BlockerActivateAnimation {
@@ -5,7 +6,7 @@ class BlockerActivateAnimation {
 
   constructor(ctx) {
     this.ctx = ctx;
-    this._rafId = null;
+    this._tween = null;
     this._ghost = null;
     this._overlay = null;
     this._fxContainer = null;
@@ -148,105 +149,100 @@ class BlockerActivateAnimation {
       const fadeOutDur = 200;
       const total = flyInDur + vfxDur + fadeOutDur;
 
-      const start = performance.now();
-      let cancelled = false;
-      const tick = (now) => {
-        if (cancelled) return;
-        const elapsed = now - start;
-        const t = Math.min(elapsed / total, 1);
+      // GSAP proxy drives normalized time through all 3 phases
+      const _p = { t: 0 };
+      this._tween = gsap.to(_p, {
+        t: 1,
+        duration: total / 1000,
+        ease: 'none',
+        onUpdate: () => {
+          const actualT = _p.t;
 
-        if (t < flyInDur / total) {
-          const p = (elapsed / total) / (flyInDur / total);
-          const e = 1 - Math.pow(1 - p, 3);
+          if (actualT < flyInDur / total) {
+            const p = actualT / (flyInDur / total);
+            const e = 1 - Math.pow(1 - p, 3);
 
-          ghost.x = slotStagePos.x + (centerX - slotStagePos.x) * e;
-          ghost.y = slotStagePos.y + (centerY - slotStagePos.y) * e;
-          ghost.alpha = Math.min(p / 0.1, 1);
-          ghost.scale.set(1 + e * 1.5, 1 + e * 1.5);
+            ghost.x = slotStagePos.x + (centerX - slotStagePos.x) * e;
+            ghost.y = slotStagePos.y + (centerY - slotStagePos.y) * e;
+            ghost.alpha = Math.min(p / 0.1, 1);
+            ghost.scale.set(1 + e * 1.5, 1 + e * 1.5);
 
-          overlay.alpha = e * 0.85;
+            overlay.alpha = e * 0.85;
 
-        } else if (t < (flyInDur + vfxDur) / total) {
-          const raw = (elapsed / total - flyInDur / total) / (vfxDur / total);
-          const p = Math.min(raw, 1);
+          } else if (actualT < (flyInDur + vfxDur) / total) {
+            const raw = (actualT - flyInDur / total) / (vfxDur / total);
+            const p = Math.min(raw, 1);
 
-          ghost.x = centerX;
-          ghost.y = centerY;
-          ghost.alpha = 1;
-          ghost.scale.set(2.5, 2.5);
+            ghost.x = centerX;
+            ghost.y = centerY;
+            ghost.alpha = 1;
+            ghost.scale.set(2.5, 2.5);
 
-          const sparkP = Math.min(p / 0.45, 1);
-          spark.alpha = Math.max(0, 1 - sparkP);
-          spark.scale.set(sparkP * 8);
+            const sparkP = Math.min(p / 0.45, 1);
+            spark.alpha = Math.max(0, 1 - sparkP);
+            spark.scale.set(sparkP * 8);
 
-          const ringP = Math.min(p / 0.7, 1);
-          ring.alpha = Math.max(0, 1 - ringP);
-          ring.scale.set(0.2 + ringP * 2.8);
+            const ringP = Math.min(p / 0.7, 1);
+            ring.alpha = Math.max(0, 1 - ringP);
+            ring.scale.set(0.2 + ringP * 2.8);
 
-          const shineP = Math.min(p / 0.45, 1);
-          shine.x = (centerX - 400) + shineP * 800;
-          shine.alpha = Math.max(0, 1 - shineP);
+            const shineP = Math.min(p / 0.45, 1);
+            shine.x = (centerX - 400) + shineP * 800;
+            shine.alpha = Math.max(0, 1 - shineP);
 
-          const borderP = Math.min(p / 0.8, 1);
-          if (p < 0.15) {
-            border.alpha = p / 0.15;
+            if (p < 0.15) {
+              border.alpha = p / 0.15;
+            } else {
+              border.alpha = Math.max(0, 1 - (p - 0.15) / 0.65);
+            }
+
+            glowFilter.outerStrength = 2 + 6 * Math.sin(p * Math.PI);
+
+            const partP = Math.min(p / 0.6, 1);
+            for (const pt of particles) {
+              pt.x = pt.x + (pt._targetX - pt.x) * partP * 0.1;
+              pt.y = pt.y + (pt._targetY - pt.y) * partP * 0.1;
+              pt.alpha = Math.max(0, 1 - partP);
+            }
+
           } else {
-            border.alpha = Math.max(0, 1 - (p - 0.15) / 0.65);
+            const p = (actualT - (flyInDur + vfxDur) / total) / (fadeOutDur / total);
+            const e = p * p;
+
+            ghost.x = centerX;
+            ghost.y = centerY;
+            ghost.alpha = Math.max(0, 1 - e);
+            glowFilter.outerStrength = 2 * (1 - e);
+            ghost.scale.set(2.5, 2.5);
+
+            overlay.alpha = Math.max(0, 0.85 * (1 - e));
+            fxContainer.alpha = Math.max(0, 1 - e);
           }
-
-          glowFilter.outerStrength = 2 + 6 * Math.sin(p * Math.PI);
-
-          const partP = Math.min(p / 0.6, 1);
-          for (const pt of particles) {
-            pt.x = pt.x + (pt._targetX - pt.x) * partP * 0.1;
-            pt.y = pt.y + (pt._targetY - pt.y) * partP * 0.1;
-            pt.alpha = Math.max(0, 1 - partP);
-          }
-
-        } else {
-          const p = (elapsed / total - (flyInDur + vfxDur) / total) / (fadeOutDur / total);
-          const e = p * p;
-
-          ghost.x = centerX;
-          ghost.y = centerY;
-          ghost.alpha = Math.max(0, 1 - e);
-          glowFilter.outerStrength = 2 * (1 - e);
-          ghost.scale.set(2.5, 2.5);
-
-          overlay.alpha = Math.max(0, 0.85 * (1 - e));
-          fxContainer.alpha = Math.max(0, 1 - e);
-
-          if (p >= 1) {
-            cancelled = true;
-            ghost.alpha = 0;
-            overlay.alpha = 0;
-            fxContainer.alpha = 0;
-            if (ghost.parent) ghost.parent.removeChild(ghost);
-            if (overlay.parent) overlay.parent.removeChild(overlay);
-            if (fxContainer.parent) fxContainer.parent.removeChild(fxContainer);
-            this._rafId = null;
-            this._ghost = null;
-            this._overlay = null;
-            this._fxContainer = null;
-            const r = this._resolve;
-            this._resolve = null;
-            if (r) r();
-            resolve();
-            return;
-          }
-        }
-
-        this._rafId = requestAnimationFrame(tick);
-      };
-      this._rafId = requestAnimationFrame(tick);
+        },
+        onComplete: () => {
+          ghost.alpha = 0;
+          overlay.alpha = 0;
+          fxContainer.alpha = 0;
+          if (ghost.parent) ghost.parent.removeChild(ghost);
+          if (overlay.parent) overlay.parent.removeChild(overlay);
+          if (fxContainer.parent) fxContainer.parent.removeChild(fxContainer);
+          this._tween = null;
+          this._ghost = null;
+          this._overlay = null;
+          this._fxContainer = null;
+          const r = this._resolve;
+          this._resolve = null;
+          if (r) r();
+        },
+      });
     });
   }
 
   /** Cancel in-flight blocker activation animation. */
   cancel() {
-    if (this._rafId != null) {
-      cancelAnimationFrame(this._rafId);
-      this._rafId = null;
+    if (this._tween) {
+      this._tween.kill();
+      this._tween = null;
     }
     if (this._ghost && this._ghost.parent) {
       this._ghost.parent.removeChild(this._ghost);

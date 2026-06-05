@@ -1,3 +1,5 @@
+import { gsap } from 'gsap';
+
 class DONReturnOnKOAnimation {
   static requires = ['app', 'zoneManager', 'players', 'zoneRenderer'];
 
@@ -40,9 +42,6 @@ class DONReturnOnKOAnimation {
       endPositions.push({ x: targetX, y: targetY });
     }
 
-    const duration = 350;
-    const t0 = performance.now();
-
     const tokens = [];
     for (let i = 0; i < donCount; i++) {
       const sp = new PIXI.Sprite(donTexture);
@@ -61,29 +60,28 @@ class DONReturnOnKOAnimation {
       tokens.push(sp);
     }
 
-    return new Promise((resolve) => {
-      const tick = (now) => {
-        const elapsed = now - t0;
-        const t = Math.min(elapsed / duration, 1);
-        const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-
-        let allDone = true;
-        for (const sp of tokens) {
-          if (t < 1) allDone = false;
-          sp.x = startPos.x + (sp._endPos.x - startPos.x) * e;
-          sp.y = startPos.y + (sp._endPos.y - startPos.y) * e;
-          sp.rotation = Math.PI / 2;
-        }
-        if (allDone) {
+    // GSAP proxy: 350ms, sine.inOut (matches easeInOut)
+    await new Promise((resolve) => {
+      const proxy = { t: 0 };
+      gsap.to(proxy, {
+        t: 1,
+        duration: 0.35,
+        ease: 'sine.inOut',
+        onUpdate: () => {
+          const e = proxy.t;
+          for (const sp of tokens) {
+            sp.x = startPos.x + (sp._endPos.x - startPos.x) * e;
+            sp.y = startPos.y + (sp._endPos.y - startPos.y) * e;
+            sp.rotation = Math.PI / 2;
+          }
+        },
+        onComplete: () => {
           for (const sp of tokens) {
             if (sp.parent) sp.parent.removeChild(sp);
           }
           resolve();
-          return;
-        }
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
+        },
+      });
     });
   }
 }

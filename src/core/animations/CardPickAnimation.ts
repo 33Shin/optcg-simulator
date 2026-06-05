@@ -1,3 +1,4 @@
+import { gsap } from 'gsap';
 import { easeInOut, easeOutCubic, createFlipCard, makeFlyCard, getDisplayTexture, narrowContext } from './utils';
 import FlyToBottomDeckAnimation from './FlyToBottomDeckAnimation';
 import FlyToHandAnimation from './FlyToHandAnimation';
@@ -36,7 +37,7 @@ export default class CardPickAnimation {
     // Compute layout for center display — same size as mulligan, constrained to hand zone width
     const displayScale = 1.5;
     const displayW = flyCardW * displayScale;
-    const displayH = flyCardH * displayScale;
+    const displayH = cardH * 0.95 * displayScale;
     const centerY = 400;
 
     const zoneW = handZone.width - 20;
@@ -137,30 +138,28 @@ export default class CardPickAnimation {
         app.stage.addChildAt(overlay, flyIdx);
       }
 
-      const start = performance.now();
-
-      requestAnimationFrame(function tick(now) {
-        const elapsed = now - start;
-        const t = Math.min(elapsed / duration, 1);
-        const e = easeInOut(t);
-
-        overlay.alpha = e * 0.7;
-
-        for (const fc of flyCards) {
-          const sp = fc.flyCard;
-          sp.x = sp._startX + (sp._targetX - sp._startX) * e;
-          sp.y = sp._startY + (sp._targetY - sp._startY) * e;
-          const s = sp._startScale + (sp._targetScale - sp._startScale) * e;
-          sp.scale.set(s);
-        }
-
-        if (t < 1) {
-          requestAnimationFrame(tick);
-        } else {
+      // GSAP proxy: sine.inOut matches easeInOut
+      const _p = { t: 0 };
+      gsap.to(_p, {
+        t: 1,
+        duration: duration / 1000,
+        ease: 'sine.inOut',
+        onUpdate: () => {
+          const e = _p.t;
+          overlay.alpha = e * 0.7;
+          for (const fc of flyCards) {
+            const sp = fc.flyCard;
+            sp.x = sp._startX + (sp._targetX - sp._startX) * e;
+            sp.y = sp._startY + (sp._targetY - sp._startY) * e;
+            const s = sp._startScale + (sp._targetScale - sp._startScale) * e;
+            sp.scale.set(s);
+          }
+        },
+        onComplete: () => {
           overlay._ref = overlay;
           for (const fc of flyCards) fc.flyCard._overlay = overlay;
           resolve(overlay);
-        }
+        },
       });
     });
   }
@@ -305,7 +304,7 @@ export default class CardPickAnimation {
         if (!btnEnabled) return;
         bobIds.forEach(id => cancelAnimationFrame(id));
         const selected = selectedIndex >= 0 ? cards[selectedIndex] : null;
-        this._cleanup(confirmButtonBg, confirmButtonText, confirmButtonHover, cardPickPromptText, selectBorders);
+        this._cleanup(confirmButtonBg, confirmButtonText, confirmButtonHover, cardPickPromptText, ...selectBorders);
         resolve(selected);
       });
 
@@ -341,7 +340,7 @@ export default class CardPickAnimation {
 
     const displayScale = 1.5;
     const displayW = flyCardW * displayScale;
-    const displayH = flyCardH * displayScale;
+    const displayH = cardH * 0.95 * displayScale;
     const centerY = 400;
 
     const zoneW = handZone.width - 20;
@@ -657,36 +656,33 @@ export default class CardPickAnimation {
     const duration = 700;
 
     await Promise.all([
-      // Selected cards fly to deck + overlay fade
+      // Selected cards fly to deck + overlay fade  (GSAP proxy, sine.inOut matches easeInOut)
       new Promise((resolve) => {
-        const start = performance.now();
-        requestAnimationFrame(function tick(now) {
-          const elapsed = now - start;
-          const t = Math.min(elapsed / duration, 1);
-          const e = easeInOut(t);
-
-          if (overlay) overlay.alpha = 0.7 * (1 - e);
-
-          for (const sc of selectedCardArr) {
-            const idx = cards.indexOf(sc);
-            if (idx < 0) continue;
-            const sp = flyCards[idx].flyCard;
-            const flipSign = 1 - 2 * e;
-            const shrinkScale = sp._targetScale - e * (sp._targetScale - targetScale);
-            sp.x = sp._targetX + (deckTopPos.x - sp._targetX) * e;
-            sp.y = sp._targetY + (deckTopPos.y - sp._targetY) * e;
-
-            // Use absolute scale after flip completes so the back texture isn't mirrored
-            const scaleX = e >= 0.5 ? shrinkScale : flipSign * shrinkScale;
-            sp.scale.set(scaleX, shrinkScale);
-            sp.alpha = 1;
-            if (e > 0.5 && sp.children[0] && sp.children[0].texture) {
-              sp.children[0].texture = PIXI.Texture.from('assets/imgs/back.webp');
+        const _p = { t: 0 };
+        gsap.to(_p, {
+          t: 1,
+          duration: duration / 1000,
+          ease: 'sine.inOut',
+          onUpdate: () => {
+            const e = _p.t;
+            if (overlay) overlay.alpha = 0.7 * (1 - e);
+            for (const sc of selectedCardArr) {
+              const idx = cards.indexOf(sc);
+              if (idx < 0) continue;
+              const sp = flyCards[idx].flyCard;
+              const flipSign = 1 - 2 * e;
+              const shrinkScale = sp._targetScale - e * (sp._targetScale - targetScale);
+              sp.x = sp._targetX + (deckTopPos.x - sp._targetX) * e;
+              sp.y = sp._targetY + (deckTopPos.y - sp._targetY) * e;
+              const scaleX = e >= 0.5 ? shrinkScale : flipSign * shrinkScale;
+              sp.scale.set(scaleX, shrinkScale);
+              sp.alpha = 1;
+              if (e > 0.5 && sp.children[0] && sp.children[0].texture) {
+                sp.children[0].texture = PIXI.Texture.from('assets/imgs/back.webp');
+              }
             }
-          }
-
-          if (t >= 1) resolve();
-          else requestAnimationFrame(tick);
+          },
+          onComplete: resolve,
         });
       }),
       // Non-selected cards return to hand
@@ -818,27 +814,26 @@ export default class CardPickAnimation {
     const duration = 600;
 
     await Promise.all([
-      // Selected card flies to trash + overlay fade
+      // Selected card flies to trash + overlay fade (GSAP proxy, sine.inOut matches easeInOut)
       new Promise((resolve) => {
-        const start = performance.now();
-        requestAnimationFrame(function tick(now) {
-          const elapsed = now - start;
-          const t = Math.min(elapsed / duration, 1);
-          const e = easeInOut(t);
-
-          if (overlay) overlay.alpha = 0.7 * (1 - e);
-
-          if (selectedIdx >= 0) {
-            const sp = flyCards[selectedIdx].flyCard;
-            sp.x = sp._targetX + (trashPos.x - sp._targetX) * e;
-            sp.y = sp._targetY + (trashPos.y - sp._targetY) * e;
-            const curScale = sp._targetScale - e * (sp._targetScale - targetScale);
-            sp.scale.set(curScale);
-            sp.alpha = 1;
-          }
-
-          if (t >= 1) resolve();
-          else requestAnimationFrame(tick);
+        const _p = { t: 0 };
+        gsap.to(_p, {
+          t: 1,
+          duration: duration / 1000,
+          ease: 'sine.inOut',
+          onUpdate: () => {
+            const e = _p.t;
+            if (overlay) overlay.alpha = 0.7 * (1 - e);
+            if (selectedIdx >= 0) {
+              const sp = flyCards[selectedIdx].flyCard;
+              sp.x = sp._targetX + (trashPos.x - sp._targetX) * e;
+              sp.y = sp._targetY + (trashPos.y - sp._targetY) * e;
+              const curScale = sp._targetScale - e * (sp._targetScale - targetScale);
+              sp.scale.set(curScale);
+              sp.alpha = 1;
+            }
+          },
+          onComplete: resolve,
         });
       }),
       // Non-selected cards return to hand

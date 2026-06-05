@@ -1,4 +1,4 @@
-import { Animator } from './Animator';
+import { gsap } from 'gsap';
 import SnapBackAnimation from './animations/SnapBackAnimation';
 import FadeOutGhostAnimation from './animations/FadeOutGhostAnimation';
 import { isPointInZone } from './animations/utils';
@@ -622,12 +622,14 @@ class DragManager {
     }
 
     const duration = 280;
-    const startTime = performance.now();
 
-    Animator.animate({
-      duration,
-      easing: 'easeOutQuad',
-      onUpdate: (t) => {
+    const _p = { t: 0 };
+    gsap.to(_p, {
+      t: 1,
+      duration: duration / 1000,
+      ease: 'power2.out',
+      onUpdate: () => {
+        const t = _p.t;
         this._ghost.position.x += (endPos.x - this._ghost.position.x) * t * 0.3;
         this._ghost.position.y += (endPos.y - this._ghost.position.y) * t * 0.3;
         this._ghost.alpha = 1 - t * 0.3;
@@ -636,7 +638,7 @@ class DragManager {
         this._resolveImmediately();
         this._cleanupDrag();
       },
-    }).toPromise();
+    });
   }
 
 
@@ -810,16 +812,18 @@ class DragManager {
       obj.alpha = to;
       return;
     }
-    Animator.animate({
-      duration,
-      easing: 'easeOutQuad',
-      onUpdate: (t) => {
-        obj.alpha = from + (to - from) * t;
+    const _p = { t: 0 };
+    gsap.to(_p, {
+      t: 1,
+      duration: duration / 1000,
+      ease: 'power2.out',
+      onUpdate: () => {
+        obj.alpha = from + (to - from) * _p.t;
       },
       onComplete: () => {
         obj.alpha = to;
       },
-    }).toPromise();
+    });
   }
 
   // --- Public cleanup ---
