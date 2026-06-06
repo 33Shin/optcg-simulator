@@ -27,8 +27,8 @@ import EventPlayAnimation from './animations/EventPlayAnimation';
 import { narrowContext } from './animations/utils';
 
 class AnimationManager {
-  constructor(app, gameBoard, zoneManager, renderer, players, handRenderer, zoneRenderer, donSystem, ui) {
-    this.ctx = { app, gameBoard, zoneManager, renderer, players, handRenderer, zoneRenderer, donSystem, ui };
+  constructor(app, gameBoard, zoneManager, renderer, players, handRenderer, zoneRenderer, donSystem, ui, ai, game) {
+    this.ctx = { app, gameBoard, zoneManager, renderer, players, handRenderer, zoneRenderer, donSystem, ui, ai, game };
 
     this.initialDraw = new InitialDrawAnimation(narrowContext(this.ctx, InitialDrawAnimation));
     this.initialDraw.name = 'initialDraw';

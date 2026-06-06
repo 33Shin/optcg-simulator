@@ -74,6 +74,7 @@ class TurnManager {
     }
     // Reset leader
     player.leader.rested = false;
+    player.leader.playedThisTurn = false;
 
     // Return DON!! from attached characters to cost area as rested
     this.donSystem.returnAllDON(pid);

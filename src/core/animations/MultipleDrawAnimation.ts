@@ -2,7 +2,7 @@ import { gsap } from 'gsap';
 import { easeInOut, createFlipCard, getDisplayTexture, makeFlyCard, delay } from './utils';
 
 export default class MultipleDrawAnimation {
-  static requires = ['app', 'zoneManager', 'handRenderer', 'ui'];
+  static requires = ['app', 'zoneManager', 'handRenderer', 'ui', 'ai', 'game'];
 
   constructor(ctx) {
     this.ctx = ctx;
@@ -364,7 +364,7 @@ export default class MultipleDrawAnimation {
 
   _showMulliganOverlay(pid, player) {
     return new Promise((resolve) => {
-      const { app } = this.ctx;
+      const { app, ai, game } = this.ctx;
 
       // Dark overlay
       const mulliganOverlay = new PIXI.Graphics();
@@ -391,6 +391,18 @@ export default class MultipleDrawAnimation {
       mulliganPrompt.alpha = 0;
       mulliganPrompt.eventMode = 'none';
       app.stage.addChild(mulliganPrompt);
+
+      // Timer text
+      const timerText = new PIXI.Text({
+        text: 'AI will decide in 5s',
+        style: { fontSize: 16, fill: 0xff6666, fontFamily: 'Russo One' }
+      });
+      timerText.name = 'mulliganTimer';
+      timerText.anchor.set(0.5, 0);
+      timerText.position.set(600, 220);
+      timerText.alpha = 0;
+      timerText.eventMode = 'none';
+      app.stage.addChild(timerText);
 
       // Buttons
       const btnW = 180, btnH = 48;
@@ -436,6 +448,9 @@ export default class MultipleDrawAnimation {
       mulliganButtonText.eventMode = 'none';
       mulliganButtonText.alpha = 0;
 
+      let decided = false;
+      let remaining = 5;
+
       const setupUI = () => {
         app.stage.addChild(keepButtonBg);
         app.stage.addChild(keepButtonText);
@@ -446,6 +461,7 @@ export default class MultipleDrawAnimation {
         keepButtonText.alpha = 1;
         mulliganButtonBg.alpha = 1;
         mulliganButtonText.alpha = 1;
+        timerText.alpha = 1;
 
         // Hover handlers: show card info on fly cards
         for (const child of app.stage.children) {
@@ -465,15 +481,35 @@ export default class MultipleDrawAnimation {
       setupUI();
 
       const cleanup = () => {
+        decided = true;
         const panel = document.getElementById('card-info-panel');
         if (panel) panel.innerHTML = '';
         if (mulliganOverlay.parent) mulliganOverlay.parent.removeChild(mulliganOverlay);
         if (mulliganPrompt.parent) mulliganPrompt.parent.removeChild(mulliganPrompt);
+        if (timerText.parent) timerText.parent.removeChild(timerText);
         if (keepButtonBg.parent) keepButtonBg.parent.removeChild(keepButtonBg);
         if (keepButtonText.parent) keepButtonText.parent.removeChild(keepButtonText);
         if (mulliganButtonBg.parent) mulliganButtonBg.parent.removeChild(mulliganButtonBg);
         if (mulliganButtonText.parent) mulliganButtonText.parent.removeChild(mulliganButtonText);
       };
+
+      // 5-second countdown timer
+      const timerInterval = setInterval(() => {
+        if (decided) {
+          clearInterval(timerInterval);
+          return;
+        }
+        remaining--;
+        timerText.text = `AI will decide in ${remaining}s`;
+        if (remaining <= 0) {
+          clearInterval(timerInterval);
+          // AI takes over entirely
+          game._playerAIEnabled = true;
+          const keep = !ai.shouldMulligan(player.hand);
+          cleanup();
+          resolve(keep);
+        }
+      }, 1000);
 
       keepButtonBg.on('pointerdown', () => { cleanup(); resolve(true); });
       mulliganButtonBg.on('pointerdown', () => { cleanup(); resolve(false); });

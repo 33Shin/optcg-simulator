@@ -30,15 +30,18 @@ class AI {
 
   /**
    * Decide whether to block an incoming attack and which character to use.
+   * Picks the weakest blocker that can still win, saving stronger blockers.
    */
   async chooseBlocker(blockers, attackerPower) {
     await delay(500);
 
-    // Find a blocker that can win the fight
-    for (const blocker of blockers) {
-      if (blocker.currentPower >= attackerPower) {
-        return blocker;
-      }
+    // Find blockers that can win, sorted weakest-first (save stronger blockers)
+    const canWin = blockers
+      .filter(b => b.currentPower >= attackerPower)
+      .sort((a, b) => a.currentPower - b.currentPower);
+
+    if (canWin.length > 0) {
+      return canWin[0];
     }
 
     // If no blocker can win, use the highest-power blocker to at least try
@@ -138,10 +141,43 @@ class AI {
 
   /**
    * Decide whether the AI should mulligan its opening hand.
-   * Always mulligans for now.
+   * Evaluates hand quality based on character count, early-game plays, and DON curve.
    */
-  shouldMulligan() {
-    return true;
+  shouldMulligan(hand) {
+    if (!hand || hand.length === 0) return true;
+
+    let score = 0;
+
+    const characters = hand.filter(c => c.category === 'character');
+    const events = hand.filter(c => c.category === 'event');
+
+    // Need at least some characters
+    if (characters.length === 0) return true;
+    if (characters.length <= 1) score -= 2;
+    else if (characters.length >= 3) score += 1;
+
+    // Early-game plays (cost 0-2)
+    const earlyPlays = characters.filter(c => (c.cost || 0) <= 2);
+    if (earlyPlays.length === 0) score -= 2;
+    else if (earlyPlays.length >= 2) score += 1;
+
+    // Mid-game characters (cost 3-5)
+    const midPlays = characters.filter(c => {
+      const cost = c.cost || 0;
+      return cost >= 3 && cost <= 5;
+    });
+    if (midPlays.length >= 1) score += 1;
+
+    // Events are nice to have
+    if (events.length >= 1) score += 1;
+
+    // Too many high-cost cards with no DON curve
+    const highCost = characters.filter(c => (c.cost || 0) >= 6);
+    const lowCost = characters.filter(c => (c.cost || 0) <= 3);
+    if (highCost.length > 2 && lowCost.length < 2) score -= 3;
+    if (highCost.length > 3) score -= 2;
+
+    return score < 3;
   }
 
   /**

@@ -8,32 +8,37 @@ class AttachDONAI extends AIBehaviour {
 
     const activeDonCount = () => player.costArea.filter(d => d.active && !d.rested).length;
 
+    // Only attach DON to characters that can attack (not rested, not played this turn)
+    // Sort by power descending — prioritize boosting strongest attackers
     const attachTargets = player.field
       .filter(c => c !== null)
-      .filter(c => !c.rested && !c.playedThisTurn);
+      .filter(c => !c.rested && !c.playedThisTurn)
+      .sort((a, b) => (b.currentPower || 0) - (a.currentPower || 0));
 
     let anyAttached = false;
 
     for (const target of attachTargets) {
-      if (activeDonCount() > 0) {
-        const oldPower = target.currentPower || target.power || 0;
-        const newPower = oldPower + 1000;
+      // Stop if no DON left or if character already has sufficient power
+      if (activeDonCount() === 0) break;
+      if ((target.currentPower || 0) >= 5000) break;
 
-        const targetZone = this.ai.zoneManager.getZone(this.pid, `field_slot_${player.field.indexOf(target)}`);
-        const sprite = targetZone?.children?.find(c => c.isFieldSprite);
-        const powerText = sprite?.children?.find(c => c.isPowerText);
-        const isAlreadyGold = powerText?.style?.fill === 0xffd700;
+      const oldPower = target.currentPower || target.power || 0;
+      const newPower = oldPower + 1000;
 
-        this.ai.donSystem.attachDON(this.pid, target);
-        this.ai._renderDONTokens();
+      const targetZone = this.ai.zoneManager.getZone(this.pid, `field_slot_${player.field.indexOf(target)}`);
+      const sprite = targetZone?.children?.find(c => c.isFieldSprite);
+      const powerText = sprite?.children?.find(c => c.isPowerText);
+      const isAlreadyGold = powerText?.style?.fill === 0xffd700;
 
-        await Promise.all([
-          this.ai.animManager.animateDONBurst(targetZone),
-          this.ai.animManager.animatePowerCount(powerText, oldPower, newPower, 700, isAlreadyGold ? 0xffd700 : 0xffffff, 0xffd700),
-        ]);
+      this.ai.donSystem.attachDON(this.pid, target);
+      this.ai._renderDONTokens();
 
-        anyAttached = true;
-      }
+      await Promise.all([
+        this.ai.animManager.animateDONBurst(targetZone),
+        this.ai.animManager.animatePowerCount(powerText, oldPower, newPower, 700, isAlreadyGold ? 0xffd700 : 0xffffff, 0xffd700),
+      ]);
+
+      anyAttached = true;
     }
 
     if (anyAttached) {

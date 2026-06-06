@@ -151,7 +151,11 @@ class AttackInteraction {
             players[pid].field[_atkRestoreSlot] = attacker;
           }
         }
-        this.game.fieldRenderer.renderFieldWithInteraction(1, (...args) => this.onFieldCardDrag(...args));
+        if (this.game._playerAIEnabled) {
+          this.game.fieldRenderer.renderField(1);
+        } else {
+          this.game.fieldRenderer.renderFieldWithInteraction(1, (...args) => this.onFieldCardDrag(...args));
+        }
         this.game.fieldRenderer.renderField(2);
         this.game.fieldRenderer.renderLeaders();
       });
@@ -244,7 +248,7 @@ class AttackInteraction {
     }
 
     // AI defender: decide counters programmatically
-    if (defenderPid === 2) {
+    if (defenderPid === 2 || this.game._playerAIEnabled) {
       return this._aiCounterPhase(defenderPid, attacker, target, players, animManager, defZone, defPowerText);
     }
 
@@ -641,7 +645,7 @@ class AttackInteraction {
 
     let selected = null;
 
-    if (defenderPid === 1) {
+    if (defenderPid === 1 && !this.game._playerAIEnabled) {
       selected = await this._humanBlockerPhase(defenderPid, blockers, attacker);
     } else {
       selected = await ai.chooseBlocker(blockers, attacker.currentPower || 0);
@@ -760,12 +764,16 @@ class AttackInteraction {
     const { fieldRenderer, zoneRenderer } = this.game;
     this.game.actionState = 'idle';
     // restoreActionButton() is called by the outer finally block, not here
-    fieldRenderer.renderFieldWithInteraction(1, (...args) => this.onFieldCardDrag(...args));
+    if (this.game._playerAIEnabled) {
+      fieldRenderer.renderField(1);
+    } else {
+      fieldRenderer.renderFieldWithInteraction(1, (...args) => this.onFieldCardDrag(...args));
+      this.game._bindLeaderInteraction(1);
+    }
     fieldRenderer.renderField(2);
     fieldRenderer.renderLeaders();
     zoneRenderer.renderAll();
     this.game._renderDONTokens();
-    this.game._bindLeaderInteraction(1);
   }
 
   /** Configure the action button as a clickable PASS button. */

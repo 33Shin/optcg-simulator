@@ -9,30 +9,43 @@ class AttackAI extends AIBehaviour {
 
     while (this.canAct()) {
       // Collect all valid attackers: field characters + leader
-      const charAttackers = this.player.field
-        .map((c, i) => ({ card: c, slot: i }))
-        .filter(({ card }) => card && !card.rested && !card.playedThisTurn);
+      const fieldAttackers = this.player.field
+        .filter((c) => c && !c.rested && !c.playedThisTurn);
 
-      if (charAttackers.length === 0) break;
+      const leader = this.player.leader;
+      const allAttackers = leader && !leader.rested
+        ? [...fieldAttackers, leader]
+        : fieldAttackers;
+
+      if (allAttackers.length === 0) break;
 
       // Target: rested opponent characters only + opponent leader
       const charTargets = this.opponent.field.filter((c) => c !== null && c.rested);
-      const targets = [...charTargets, this.opponent.leader];
+      const targets = [...charTargets, this.opponent.leader].filter(Boolean);
       if (targets.length === 0) break;
 
+      // Sort targets weakest-first so we prioritize easy KOs
       targets.sort((a, b) => (a.currentPower || 0) - (b.currentPower || 0));
 
-      charAttackers.sort((a, b) => (b.card.currentPower || 0) - (a.card.currentPower || 0));
+      // Find any attacker-target pair where attacker can win
+      let found = false;
+      for (const target of targets) {
+        const targetPower = target.currentPower || 0;
+        // Find the weakest attacker that can still win (save stronger attackers)
+        const viableAttackers = allAttackers
+          .filter((c) => (c.currentPower || 0) >= targetPower)
+          .sort((a, b) => (a.currentPower || 0) - (b.currentPower || 0));
 
-      const bestAtk = charAttackers.find((a) => (a.card.currentPower || 0) >= (targets[0].currentPower || 0)) || charAttackers[0];
-      const target = targets[0];
+        if (viableAttackers.length > 0) {
+          await this.ai._resolveBattle(this.pid, viableAttackers[0], target, this.opponent);
+          await this.sleep(this.delayMs);
+          anyAttacked = true;
+          found = true;
+          break;
+        }
+      }
 
-      if (!bestAtk) break;
-
-      await this.ai._resolveBattle(this.pid, bestAtk.card, target, this.opponent);
-      await this.sleep(this.delayMs);
-
-      anyAttacked = true;
+      if (!found) break;
     }
 
     return anyAttacked;

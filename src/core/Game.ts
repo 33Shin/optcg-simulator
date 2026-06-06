@@ -71,10 +71,13 @@ class Game {
     this.effectSystem = new EffectSystem(this.state, this.players, eventBus);
     this.combatSystem = new CombatSystem(this.state, this.players, eventBus);
 
+    // AI (created before animManager so it's available in animation context)
+    this.ai = new AI(this);
+
     // Managers
     this.animManager = new AnimationManager(
       app, this.gameBoard, this.zoneManager, this.renderer, this.players,
-      this.handRenderer, this.zoneRenderer, this.donSystem, this.ui
+      this.handRenderer, this.zoneRenderer, this.donSystem, this.ui, this.ai, this
     );
 
     // Counter phase overlay (needs animManager, handRenderer)
@@ -113,9 +116,6 @@ class Game {
       async (pid) => { this._animating = true; await this.animManager.animateActive(pid); this._animating = false; },
     );
 
-    // AI
-    this.ai = new AI(this);
-
     // Interaction handlers (delegated from Game)
     this.playCardInteraction = new PlayCardInteraction(this);
     this.attachDONInteraction = new AttachDONInteraction(this);
@@ -126,6 +126,7 @@ class Game {
     this._animating = false;
     this._donVisibleCount = { 1: 0, 2: 0 };
     this._savedDONStates = {};
+    this._playerAIEnabled = false;
   }
 
   _pendingSlams = 0;
@@ -208,8 +209,17 @@ class Game {
     }
 
     const player = this.players[pid];
-    const kept = await this.animManager.multipleDraw.animateMulligan(pid, player, true);
-    if (!kept) await this._doMulliganRedraw(pid);
+    let kept;
+    if (this._playerAIEnabled) {
+      // AI-controlled P1: auto-decide mulligan
+      kept = !this.ai.shouldMulligan(player.hand);
+      if (!kept) {
+        await this.animManager.initialDraw.animateAIMulligan(pid, this.animManager.shuffle);
+      }
+    } else {
+      kept = await this.animManager.multipleDraw.animateMulligan(pid, player, true);
+      if (!kept) await this._doMulliganRedraw(pid);
+    }
 
     // P2 AI mulligan (after P1 mulligan completes)
     await this._doAIMulligan(2);
@@ -219,7 +229,7 @@ class Game {
 
   async _doAIMulligan(pid) {
     const player = this.players[pid];
-    if (this.ai.shouldMulligan()) {
+    if (this.ai.shouldMulligan(player.hand)) {
       await this.animManager.initialDraw.animateAIMulligan(pid, this.animManager.shuffle);
     }
   }
@@ -290,13 +300,17 @@ class Game {
 
     this.eventBus.on('refresh:complete', () => {
       this.scheduleRender(() => {
-        this.fieldRenderer.renderFieldWithInteraction(1, (...args) => this.attackInteraction.onFieldCardDrag(...args));
+        if (this._playerAIEnabled) {
+          this.fieldRenderer.renderField(1);
+        } else {
+          this.fieldRenderer.renderFieldWithInteraction(1, (...args) => this.attackInteraction.onFieldCardDrag(...args));
+          this._bindLeaderInteraction(1);
+        }
         this.fieldRenderer.renderField(2);
         this.fieldRenderer.renderLeaders();
         this._renderDONTokens();
         this.zoneRenderer.renderAll();
         this.zoneRenderer.renderLifeIndicatorsBoth();
-        this._bindLeaderInteraction(1);
       });
     });
 
@@ -310,13 +324,15 @@ class Game {
       if (p.leader) p.leader._donBonusActive = true;
       // Re-render to show updated power with DON bonus
       this.scheduleRender(() => {
-        if (pid === 1) {
+        if (pid === 1 && !this._playerAIEnabled) {
           this.fieldRenderer.renderFieldWithInteraction(pid, (...args) => this.attackInteraction.onFieldCardDrag(...args));
         } else {
           this.fieldRenderer.renderField(pid);
         }
         this.fieldRenderer.renderLeaders();
-        this._bindLeaderInteraction(pid);
+        if (pid === 1 && !this._playerAIEnabled) {
+          this._bindLeaderInteraction(pid);
+        }
       });
     });
 
@@ -343,12 +359,14 @@ class Game {
 
     this.eventBus.on('main:ready', () => {
       if (this.state.gameOver) return;
-      this._bindHandInteraction(1);
-      this._bindFieldInteraction(1);
-      this._bindLeaderInteraction(1);
-      this.ui.setEndTurnBtn(this.state.currentPlayer === 1);
+      if (!this._playerAIEnabled) {
+        this._bindHandInteraction(1);
+        this._bindFieldInteraction(1);
+        this._bindLeaderInteraction(1);
+        this.ui.setEndTurnBtn(this.state.currentPlayer === 1);
+      }
       this.scheduleRender(() => this._renderDONTokens());
-      if (this.state.currentPlayer === 2) this._aiTurn();
+      if (this.state.currentPlayer === 2 || this._playerAIEnabled) this._aiTurn();
     });
 
     this.eventBus.on('don:phaseStart', (data) => {
@@ -400,7 +418,7 @@ class Game {
       let playedTrigger = false;
 
       if (hasTrigger) {
-        if (pid === 1) {
+        if (pid === 1 && !this._playerAIEnabled) {
           // Human: animated fly-to-center + buttons + fly-to-hand on pass
           const result = await this.animManager.damageTrigger.animate(pid, player, damageCard, true, sourceZoneId);
           playedTrigger = result.played;
@@ -425,7 +443,7 @@ class Game {
         }
       } else if (damageCard) {
         // No trigger: animate fly-to-center then fly to hand
-        if (pid === 1) {
+        if (pid === 1 && !this._playerAIEnabled) {
           await this.animManager.damageTrigger.animate(pid, player, damageCard, false, sourceZoneId);
         } else {
           await this.animManager.damageTrigger.animateAI(pid, player, damageCard, false, false, sourceZoneId);
@@ -605,7 +623,7 @@ class Game {
   }
 
   async _aiTurn() {
-    await this.ai.runTurn(2);
+    await this.ai.runTurn(this.state.currentPlayer);
   }
 
   // --- Ready glow animation (delegated to HandRenderer) ---
