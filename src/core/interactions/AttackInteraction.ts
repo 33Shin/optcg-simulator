@@ -80,9 +80,11 @@ class AttackInteraction {
 
       // --- When Attacking: activate ability BEFORE lift/rotate animation ---
       // (Run before removing attacker so the field sprite stays visible during ability VFX)
-      if (attacker.effects && Array.isArray(attacker.effects) && attacker.effects.some(e => e.timing === 'whenAttacking')) {
+      const hasWhenAttacking = (attacker.effects && Array.isArray(attacker.effects) && attacker.effects.some(e => e.timing === 'whenAttacking'))
+        || this.game.effectSystem.registry.hasTiming(attacker.cardId, 'whenAttacking');
+      if (hasWhenAttacking) {
         await animManager.abilityActivate.animate(pid, attacker, attackerZone);
-        this.game.effectSystem.processWhenAttacking(attacker, players[pid]);
+        await this.game.effectSystem.processWhenAttacking(attacker, players[pid]);
         combatZone.updatePower(attacker, target);
       }
 

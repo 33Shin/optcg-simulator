@@ -85,7 +85,7 @@ class PlayCharacterAI extends AIBehaviour {
 
       // Process on-play effects
       if (this.ai.effectSystem) {
-        this.ai.effectSystem.processOnPlay(pick.card, player);
+        await this.ai.effectSystem.processOnPlay(pick.card, player);
       }
 
       anyPlayed = true;

@@ -54,7 +54,7 @@ class BattleManager {
           this.zoneRenderer.renderCostTokens(targetPid);
         }
         this.combatSystem.KO(target, targetPlayer);
-        this.effectSystem.processOnKO(target, targetPlayer);
+        await this.effectSystem.processOnKO(target, targetPlayer);
         if (this.animManager.flyToTrash && targetZone) {
           koAnimations.push(this.animManager.flyToTrash.animate(targetPid, target, targetZone));
         }
@@ -78,7 +78,7 @@ class BattleManager {
           this.zoneRenderer.renderCostTokens(targetPid);
         }
         this.combatSystem.KO(target, targetPlayer);
-        this.effectSystem.processOnKO(target, targetPlayer);
+        await this.effectSystem.processOnKO(target, targetPlayer);
         if (this.animManager.flyToTrash && targetZone) {
           koAnimations.push(this.animManager.flyToTrash.animate(targetPid, target, targetZone));
         }

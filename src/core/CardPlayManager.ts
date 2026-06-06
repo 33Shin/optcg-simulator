@@ -46,14 +46,14 @@ class CardPlayManager {
     this.donSystem.restDON(pid, cost || 0);
   }
 
-  play(card, pid) {
+  async play(card, pid) {
     const player = this.players[pid];
-    if (card.category === 'character') this._playCharacter(card, player, pid);
-    else if (card.category === 'event') this._playEvent(card, player, pid);
-    else if (card.category === 'stage') this._playStage(card, player, pid);
+    if (card.category === 'character') await this._playCharacter(card, player, pid);
+    else if (card.category === 'event') await this._playEvent(card, player, pid);
+    else if (card.category === 'stage') await this._playStage(card, player, pid);
   }
 
-  _playCharacter(card, player, pid) {
+  async _playCharacter(card, player, pid) {
     const slotIdx = player.field.indexOf(null);
     if (slotIdx === -1) {
       return;
@@ -68,10 +68,10 @@ class CardPlayManager {
     this.handRenderer.render(pid);
     this.fieldRenderer.renderField(pid);
     this.zoneRenderer.renderCostTokens(pid);
-    this.effectSystem.processOnPlay(card, player);
+    await this.effectSystem.processOnPlay(card, player);
   }
 
-  _playEvent(card, player, pid) {
+  async _playEvent(card, player, pid) {
     this.payDONCost(pid, card.cost);
     this.removeFromHand(player, card);
     player.trash.push(card);
@@ -80,10 +80,10 @@ class CardPlayManager {
     this.zoneRenderer.renderAll();
     this.zoneRenderer.renderCostTokens(pid);
     this.ui.showCardInfo(card, pid);
-    this.effectSystem.processOnPlay(card, player);
+    await this.effectSystem.processOnPlay(card, player);
   }
 
-  _playStage(card, player, pid) {
+  async _playStage(card, player, pid) {
     this.payDONCost(pid, card.cost);
     this.removeFromHand(player, card);
 
@@ -94,7 +94,7 @@ class CardPlayManager {
     this.handRenderer.render(pid);
     this.zoneRenderer.renderCostTokens(pid);
     this.zoneRenderer.renderAll();
-    this.effectSystem.processOnPlay(card, player);
+    await this.effectSystem.processOnPlay(card, player);
     this.ui.showCardInfo(card, pid);
   }
 }

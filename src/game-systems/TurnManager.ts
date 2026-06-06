@@ -104,7 +104,7 @@ class TurnManager {
     const hasTrigger = this.effectSystem.checkTrigger(card, player);
 
     if (hasTrigger) {
-      this.effectSystem.resolveTrigger(card, player);
+      await this.effectSystem.resolveTrigger(card, player);
       this.eventBus.emit('trigger:show', { card, player: pid });
       await delay(800);
     }

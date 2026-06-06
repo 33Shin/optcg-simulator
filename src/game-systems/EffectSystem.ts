@@ -1,4 +1,4 @@
-import { delay } from '../core/animations/utils';
+import EffectRegistry from '../effects/registry';
 
 // --- Shared helper methods for card manipulation ---
 
@@ -88,7 +88,7 @@ const EFFECT_HANDLERS = {
 
   trashFromHand: (ctx, params) => Helpers.trashFromHand(ctx.player, params.count || 1),
 
-  addDON: (ctx, params) => {
+  addDON: async (ctx, params) => {
     const player = ctx.player;
     if (player.donDeck.length > 0) {
       const don = player.donDeck.pop();
@@ -98,7 +98,7 @@ const EFFECT_HANDLERS = {
         player.costArea.push(don);
         for (const [pid, p] of Object.entries(ctx.players)) {
           if (p === player) {
-            ctx.eventBus.emit('effect:addDON', { playerId: parseInt(pid), don });
+            await ctx.eventBus.emitAsync('effect:addDON', { playerId: parseInt(pid), don });
             break;
           }
         }
@@ -142,37 +142,119 @@ const EFFECT_HANDLERS = {
 };
 
 class EffectSystem {
-  constructor(state, players, eventBus) {
+  constructor(state, players, eventBus, animManager) {
     this.state = state;
     this.players = players;
     this.eventBus = eventBus;
+    this.animManager = animManager;
+    this.registry = new EffectRegistry();
     this.optTracker = {};
   }
 
-  processOnPlay(card, player) {
+  /**
+   * Build an EffectContext object from current state.
+   */
+  _buildContext(card, pid, player) {
+    const ctx = {
+      card,
+      pid,
+      player,
+      players: this.players,
+      eventBus: this.eventBus,
+      animManager: this.animManager,
+      getOpponent: (p) => this._getOpponent(p),
+      drawCards: (count) => Helpers.drawCards(player, count),
+      trashFromHand: (count) => Helpers.trashFromHand(player, count),
+      addDON: async () => {
+        await EFFECT_HANDLERS.addDON(ctx, {});
+      },
+      restOpponent: (maxCost) => {
+        const opp = this._getOpponent(player);
+        if (opp) Helpers.restOpponentCharacter(opp, maxCost ?? Infinity);
+      },
+      returnOpponentCharacter: (maxCost) => {
+        const opp = this._getOpponent(player);
+        if (opp) Helpers.returnOpponentCharacterMaxCost(opp, maxCost ?? Infinity);
+      },
+      shuffleOpponentHand: () => {
+        const opp = this._getOpponent(player);
+        if (opp) Helpers.shuffleOpponentHand(opp);
+      },
+      addToLife: (source) => Helpers.addToLife(player, source || 'deck'),
+      removeFromLife: () => {
+        const opp = this._getOpponent(player);
+        if (opp) Helpers.removeFromLife(opp, player);
+      },
+      giveDONToLeader: () => {
+        const restedDon = player.costArea.find(d => d.rested);
+        if (restedDon) {
+          restedDon.attachedTo = player.leader;
+          player.costArea = player.costArea.filter(d => d !== restedDon);
+          player.leader.donAttached++;
+        }
+      },
+      returnToBottomDeck: (count) => Helpers.returnToBottomDeck(player, count),
+    };
+    return ctx;
+  }
+
+  // --- Timing entry points ---
+
+  async processOnPlay(card, player) {
+    // Check registry first
+    if (this.registry.hasTiming(card.cardId, 'onPlay')) {
+      const cls = this.registry.get(card.cardId);
+      const pid = this._findPid(player);
+      const ctx = this._buildContext(card, pid, player);
+      this.eventBus.emit('effect:onPlay', { card, player });
+      await new cls().execute(ctx);
+      return;
+    }
+    // Fall back to structured effects array
     if (!card.effects || !Array.isArray(card.effects)) return;
     this.eventBus.emit('effect:onPlay', { card, player });
     for (const eff of card.effects) {
-      if (eff.timing === 'onPlay') this._executeStructured(eff, card, player);
+      if (eff.timing === 'onPlay') await this._executeStructured(eff, card, player);
     }
   }
 
-  processOnKO(card, player) {
+  async processOnKO(card, player) {
+    // Check registry first
+    if (this.registry.hasTiming(card.cardId, 'onKO')) {
+      const cls = this.registry.get(card.cardId);
+      const pid = this._findPid(player);
+      const ctx = this._buildContext(card, pid, player);
+      this.eventBus.emit('effect:onKO', { card, player });
+      await new cls().execute(ctx);
+      return;
+    }
+    // Fall back to structured effects array
     if (!card.effects || !Array.isArray(card.effects)) return;
     this.eventBus.emit('effect:onKO', { card, player });
     for (const eff of card.effects) {
-      if (eff.timing === 'onKO') this._executeStructured(eff, card, player);
+      if (eff.timing === 'onKO') await this._executeStructured(eff, card, player);
     }
   }
 
-  processWhenAttacking(card, player) {
-
+  async processWhenAttacking(card, player) {
+    // Check registry first
+    const hasRegistryEffect = this.registry.hasTiming(card.cardId, 'whenAttacking');
+    console.log(`[EffectSystem] processWhenAttacking card=${card.cardId} registry=${hasRegistryEffect} life=${player.life.length}`);
+    if (hasRegistryEffect) {
+      const cls = this.registry.get(card.cardId);
+      const pid = this._findPid(player);
+      const ctx = this._buildContext(card, pid, player);
+      this.eventBus.emit('effect:whenAttacking', { card, player });
+      await new cls().execute(ctx);
+      return true;
+    }
+    // Fall back to structured effects array
     if (!card.effects || !Array.isArray(card.effects)) return false;
     this.eventBus.emit('effect:whenAttacking', { card, player });
     let executed = false;
     for (const eff of card.effects) {
       if (eff.timing === 'whenAttacking') {
-        this._executeStructured(eff, card, player);
+        await this._executeStructured(eff, card, player);
         executed = true;
       }
     }
@@ -180,20 +262,20 @@ class EffectSystem {
   }
 
   checkTrigger(drawnCard, player) {
-    if (!drawnCard.effects || !Array.isArray(drawnCard.effects)) {
-      // Fallback: check raw trigger property (string like '[Trigger] ...')
-      if (drawnCard.trigger && drawnCard.trigger.toLowerCase().includes('[trigger]')) {
-        this.eventBus.emit('effect:trigger', { card: drawnCard, player });
-        return true;
-      }
-      return false;
-    }
-    const triggers = drawnCard.effects.filter(e => e.timing === 'trigger');
-    if (triggers.length > 0) {
-      this.eventBus.emit('effect:trigger', { card: drawnCard, player, triggers });
+    // Check registry
+    if (this.registry.hasTiming(drawnCard.cardId, 'trigger')) {
+      this.eventBus.emit('effect:trigger', { card: drawnCard, player });
       return true;
     }
-    // Also check raw trigger string as fallback
+    // Check structured effects
+    if (drawnCard.effects && Array.isArray(drawnCard.effects)) {
+      const triggers = drawnCard.effects.filter(e => e.timing === 'trigger');
+      if (triggers.length > 0) {
+        this.eventBus.emit('effect:trigger', { card: drawnCard, player, triggers });
+        return true;
+      }
+    }
+    // Fallback: check raw trigger property
     if (drawnCard.trigger && drawnCard.trigger.toLowerCase().includes('[trigger]')) {
       this.eventBus.emit('effect:trigger', { card: drawnCard, player });
       return true;
@@ -201,25 +283,32 @@ class EffectSystem {
     return false;
   }
 
-  resolveTrigger(card, player) {
-    if (!card.effects || !Array.isArray(card.effects)) {
-      // Fallback: try to parse trigger string and execute matching effects
-      this._executeFallbackTrigger(card, player);
+  async resolveTrigger(card, player) {
+    // Check registry first
+    if (this.registry.hasTiming(card.cardId, 'trigger')) {
+      const cls = this.registry.get(card.cardId);
+      const pid = this._findPid(player);
+      const ctx = this._buildContext(card, pid, player);
+      await new cls().execute(ctx);
       return;
     }
-    for (const eff of card.effects) {
-      if (eff.timing === 'trigger') this._executeStructured(eff, card, player);
+    // Fall back to structured effects
+    if (card.effects && Array.isArray(card.effects)) {
+      for (const eff of card.effects) {
+        if (eff.timing === 'trigger') await this._executeStructured(eff, card, player);
+      }
+      return;
     }
+    // Fallback: parse raw trigger text
+    await this._executeFallbackTrigger(card, player);
   }
 
   /** Execute trigger effect by parsing raw trigger text. */
-  _executeFallbackTrigger(card, player) {
+  async _executeFallbackTrigger(card, player) {
     const txt = (card.trigger || '').toLowerCase();
-    // Add DON!!
     if (txt.includes('add') && txt.includes('don')) {
-      EFFECT_HANDLERS.addDON({ player, players: this.players, eventBus: this.eventBus }, {});
+      await EFFECT_HANDLERS.addDON({ player, players: this.players, eventBus: this.eventBus }, {});
     }
-    // Draw cards
     const drawMatch = txt.match(/draw\s*(\d+)/i);
     if (drawMatch) {
       Helpers.drawCards(player, parseInt(drawMatch[1]));
@@ -229,13 +318,10 @@ class EffectSystem {
   }
 
   checkCounter(card) {
-    // Character with counter power value (not null/undefined)
     if (card.counter !== null && card.counter !== undefined) return true;
-    // Event with [Counter] timing
     if (card.effects && Array.isArray(card.effects)) {
       if (card.effects.some(e => e.timing === 'counter')) return true;
     }
-    // Fallback: check raw effect text for [Counter] keyword
     if (card.effect && card.effect.toLowerCase().includes('[counter]')) return true;
     return false;
   }
@@ -247,13 +333,22 @@ class EffectSystem {
     return true;
   }
 
+  // --- Legacy: processCardSpecificEffects (kept for compatibility) ---
+
+  /**
+   * Route card-specific effects. Checks registry, then structured effects.
+   */
+  async processCardSpecificEffects(card, pid, player, animManager, handRenderer, zoneRenderer, turnManager) {
+    await this.processOnPlay(card, player);
+  }
+
   // --- Structured effect execution ---
 
-  _executeStructured(eff, card, player) {
+  async _executeStructured(eff, card, player) {
     if (eff.condition && !this._checkCondition(eff.condition, player)) return;
     const handler = EFFECT_HANDLERS[eff.type];
     if (!handler) return;
-    handler({
+    await handler({
       player,
       players: this.players,
       eventBus: this.eventBus,
@@ -274,37 +369,11 @@ class EffectSystem {
     return null;
   }
 
-  // --- Complex Card Effects (Async/UI dependent) ---
-
-  /**
-   * Route card-specific effects. Call this instead of processOnPlay for cards
-   * that need special handling (Otama, Nami, etc.). Falls through to processOnPlay.
-   */
-  async processCardSpecificEffects(card, pid, player, animManager, handRenderer, zoneRenderer, turnManager) {
-    if (card.cardId === 'OP13-043') {
-      await this.processOtamaEffect(pid, player, animManager, handRenderer, zoneRenderer, turnManager);
-    } else if (card.cardId === 'OP11-054') {
-      await this.processNamiEffect(pid, player, animManager, handRenderer, zoneRenderer, turnManager);
-    } else {
-      this.processOnPlay(card, player);
+  _findPid(playerObj) {
+    for (const [pid, p] of Object.entries(this.players)) {
+      if (p === playerObj) return parseInt(pid);
     }
-  }
-
-  async processOtamaEffect(pid, player, animManager, handRenderer, zoneRenderer, turnManager) {
-    await animManager.multipleDraw.drawCards(pid, player, 2, true);
-    await delay(200);
-    const selected = await animManager.cardPick.animate(pid, player, 'Choose 1 card to trash');
-    if (selected) {
-      // Logic for trashing the selected card would go here or be handled by animManager/Game
-    }
-  }
-
-  async processNamiEffect(pid, player, animManager, handRenderer, zoneRenderer, turnManager) {
-    const leaderColor = (player.leader.color || '').toLowerCase();
-    if (!leaderColor.includes('/')) return;
-    await animManager.multipleDraw.drawCards(pid, player, 3, true);
-    await delay(200);
-    await animManager.cardPick.animateNami(pid, player);
+    return null;
   }
 }
 

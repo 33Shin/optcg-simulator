@@ -68,7 +68,6 @@ class Game {
 
     // Game systems
     this.donSystem = new DONSystem(this.players, eventBus);
-    this.effectSystem = new EffectSystem(this.state, this.players, eventBus);
     this.combatSystem = new CombatSystem(this.state, this.players, eventBus);
 
     // AI (created before animManager so it's available in animation context)
@@ -79,6 +78,9 @@ class Game {
       app, this.gameBoard, this.zoneManager, this.renderer, this.players,
       this.handRenderer, this.zoneRenderer, this.donSystem, this.ui, this.ai, this
     );
+
+    // EffectSystem needs animManager for per-card effect classes
+    this.effectSystem = new EffectSystem(this.state, this.players, eventBus, this.animManager);
 
     // Counter phase overlay (needs animManager, handRenderer)
     this.counterPhaseOverlay = new CounterPhaseOverlay(
@@ -379,6 +381,7 @@ class Game {
     });
 
     this.eventBus.on('effect:addDON', async (data) => {
+      await this.animManager.animateDONDraw(data.playerId);
       await this._animateDONSlam(data.playerId);
     });
 
@@ -424,7 +427,7 @@ class Game {
           playedTrigger = result.played;
           if (playedTrigger) {
             // Execute trigger effect for free, send card to trash
-            this.effectSystem.resolveTrigger(damageCard, player);
+            await this.effectSystem.resolveTrigger(damageCard, player);
             player.trash.push(damageCard);
             // Render trash immediately — batcher is blocked by _animating during battle
             this.zoneRenderer._renderTrash(pid);
@@ -436,7 +439,7 @@ class Game {
           // AI: auto-decide, then play non-interactive animation
           playedTrigger = this.ai.shouldPlayDamageTrigger(damageCard, player);
           if (playedTrigger) {
-            this.effectSystem.resolveTrigger(damageCard, player);
+            await this.effectSystem.resolveTrigger(damageCard, player);
           }
           await this.animManager.damageTrigger.animateAI(pid, player, damageCard, true, playedTrigger, sourceZoneId);
           // Don't schedule render here — outer battle flow handles rendering via _afterBattleResolve()
@@ -611,7 +614,7 @@ class Game {
 
   // --- Play card via button (fallback) ---
 
-  _playCard(card, pid) {
+  async _playCard(card, pid) {
     if (!this.turnManager.canAct) {
       return;
     }
@@ -619,7 +622,7 @@ class Game {
     if (!res.ok) {
       return;
     }
-    this.cardPlayManager.play(card, pid);
+    await this.cardPlayManager.play(card, pid);
   }
 
   async _aiTurn() {

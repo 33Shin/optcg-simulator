@@ -193,7 +193,7 @@ class PlayCardInteraction {
       if (donCount > 0 && animManager) {
         await animManager.animateDONReturnOnKO(pid, fieldSlot, donCount);
       }
-      effectSystem.processOnKO(oldCard, player);
+      await effectSystem.processOnKO(oldCard, player);
       player.trash.push(oldCard);
       player.field[slotIdx] = null;
       if (animManager.flyToTrash) {
@@ -227,7 +227,8 @@ class PlayCardInteraction {
     // Play ability activation animation only if card has on-play effects
     const hasOnPlayStructured = card.effects && Array.isArray(card.effects) && card.effects.some(e => e.timing === 'onPlay');
     const hasOnPlayRaw = card.effect && typeof card.effect === 'string' && /\[on\s*play\]/i.test(card.effect);
-    if (hasOnPlayStructured || hasOnPlayRaw) {
+    const hasOnPlayRegistry = effectSystem.registry.hasTiming(card.cardId, 'onPlay');
+    if (hasOnPlayStructured || hasOnPlayRaw || hasOnPlayRegistry) {
       await animManager.abilityActivate.animate(pid, card, fieldSlot);
     }
 
