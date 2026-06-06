@@ -34,9 +34,9 @@
 ## PHASE 3: Turn and Phase System ✅ COMPLETE
 **Goal**: Implement the 5-phase turn structure.
 - [x] Create TurnManager with Refresh → Draw → DON!! → Main → End phases
-- [x] Auto-execute Refresh Phase (stand up cards, reset DON!! to cost)
+- [x] Auto-execute Refresh Phase (stand up cards, reset DON!! to cost, `ActiveAnimation` VFX)
 - [x] Auto-execute Draw Phase (draw 1 card from deck, show trigger)
-- [x] Auto-execute DON!! Phase (draw 2 DON!! to cost area)
+- [x] Auto-execute DON!! Phase (draw 2 DON!! to cost area, `DONSlamAnimation` + `CostTokenShiftAnimation`)
 - [x] Main Phase activates (player input enabled)
 - [x] End Phase button to pass turn
 - [x] First turn rules (1 DON!!, no draw)
@@ -72,19 +72,23 @@
 - [x] Defender wins: nothing KO'd, attacker rests
 - [x] Tie: defender loses (same as attacker wins)
 - [x] Damage to Leader: move Life card to Life pile
-- [x] Blocker effect: opponent may rest Blocker character to redirect
-- [x] Counter Phase: defender plays counter cards from hand
-- [x] Damage Phase Trigger: top deck card with Trigger/Pass buttons
-- [ ] **Deliverable**: Full battle resolution with attack mechanics (missing DON attachment during battle)
+- [x] Blocker effect: opponent may rest Blocker character to redirect (VFX via `BlockerActivateAnimation` + `BlockerRestAnimation`)
+- [x] Counter Phase: defender plays counter cards from hand (via `CounterPhaseOverlay`)
+- [x] Damage Phase Trigger: top deck card with Trigger/Pass buttons (human + AI variants via `DamageTriggerAnimation`)
+- [x] AI counter animation (fly-to-center + fade-out via `AICounterAnimation`)
+- [ ] KO animation during battle — `FlyToTrashAnimation` not wired into `BattleManager`
+- [ ] **Deliverable**: Full battle resolution with attack mechanics (missing DON attachment + KO animation during battle)
 
 ## PHASE 7: Effects and Triggers ⚠️ PARTIAL
 **Goal**: Implement card abilities.
 - [x] On Play effects resolve when character enters field
 - [x] On K.O. effects resolve when character is defeated
-- [x] When Attacking effects trigger during battle
+- [x] When Attacking effects trigger during battle (VFX via `AbilityActivateAnimation`)
 - [x] Counter effects trigger during opponent's attack
 - [x] Blocker effects redirect attacks — fully implemented with P1 UI + P2 AI
 - [x] Once Per Turn tracking
+- [x] Event play animation (fly-to-center, cyan VFX, fly-to-trash via `EventPlayAnimation`)
+- [x] Card pick animation for multi-card effects (Nami-specific 2-card pick via `CardPickAnimation`)
 - [ ] Trigger check on draw (show trigger card, resolve effect) — `checkTrigger()` fires but no UI confirmation
 - [ ] [Main] activatable effects with confirm dialog
 - [ ] [Your Turn] / [Opponent's Turn] timing enforcement
@@ -99,20 +103,24 @@
 - [x] AI attaches DON!! strategically (`AttachDONAI`)
 - [x] AI declares attacks by power comparison (`AttackAI`)
 - [x] AI blockers trigger automatically
-- [x] AI counter phase: evaluates and plays counters
+- [x] AI counter phase: evaluates and plays counters (via `AICounterAnimation`)
+- [x] AI damage trigger evaluation (`AI.shouldPlayDamageTrigger()`)
 - [ ] AI uses events at appropriate timing
-- [ ] AI responds to triggers
+- [ ] AI responds to triggers on Draw Phase
 - [x] **Deliverable**: Player can fight a basic automated Nami opponent
 
 ## PHASE 9: Polish and End Game ⚠️ PARTIAL
 **Goal**: Final touches and game completion.
 - [x] Win condition: opponent has 0 Life cards
-- [ ] Lose condition: deck runs out of cards — `deck:empty` event fires but no listener in Game.js
+- [ ] Lose condition: deck runs out of cards — `deck:empty` event fires but no listener in `Game.ts`
 - [ ] Game over screen with result
 - [ ] Restart button
 - [x] Card hover effects and tooltips
-- [x] Smooth animations for all card movements
-- [ ] KO animation during battle — `FlyToTrashAnimation` exists but not wired into `BattleManager.resolveBattle()`
+- [x] Smooth animations for all card movements (22 GSAP-powered animation classes)
+- [x] Refresh phase animation (stand up cards with activation glow)
+- [x] DON cost token shift animation
+- [x] Ghost snap-back animation on invalid drop
+- [ ] KO animation during battle — `FlyToTrashAnimation` exists but not wired into `BattleManager._resolveBattleOutcome()`
 - [ ] Battle clash/power-reveal animation
 - [ ] Sound effects (optional)
 - [ ] **Deliverable**: Complete, polished game ready for playtesting

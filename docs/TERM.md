@@ -243,7 +243,7 @@ The game follows a 5-phase turn structure: `REFRESH → DRAW → DON!! → MAIN 
 
 ## Animations
 
-### Animation Names
+### Animation Names (22 GSAP-Powered Classes)
 
 | Term | Description |
 |---|---|
@@ -258,6 +258,15 @@ The game follows a 5-phase turn structure: `REFRESH → DRAW → DON!! → MAIN 
 | **Attack Animation** | Multi-phase combat animation: attacker lifts, pulls back, rotates toward target, slams into target, impact shockwave, bounce, then returns to rest angle. |
 | **Ability Activate** | Visual glow/pulse effect on a card when its ability triggers (On Play, When Attacking, etc.). |
 | **AI Play Animation** | Visual feedback showing that the AI opponent is performing an action (playing cards, attaching DON, attacking). |
+| **ActiveAnimation** | Refresh phase: stands up all rested Characters, Leader, and DON!! tokens with activation glow effect. |
+| **BlockerActivateAnimation** | Orange glow VFX when a Blocker character is activated to redirect an attack. |
+| **BlockerRestAnimation** | Blocker rest animation: lift, rotate 90deg, slam, bounce. |
+| **CostTokenShiftAnimation** | DON cost tokens reposition smoothly when the token count changes. |
+| **EventPlayAnimation** | Event card play animation: fly-to-center, cyan VFX, fly-to-trash. |
+| **FadeOutGhostAnimation** | Generic ghost sprite fade-out utility. |
+| **HandPositionAnimation** | Hand cards shift to new positions after add/remove. |
+| **PowerCountAnimation** | Power count-up/down animation with scale peak and color transition. |
+| **SnapBackAnimation** | Ghost card snap-back on invalid drop. |
 | **Countdown** | Pre-game countdown animation before the mulligan prompt appears. |
 
 ---
@@ -276,40 +285,49 @@ The game follows a 5-phase turn structure: `REFRESH → DRAW → DON!! → MAIN 
 
 ## Internal Architecture Terms
 
+### GSAP Animation System
+
+| Term | Description |
+|---|---|
+| **GSAP** | GreenSock Animation Platform, loaded via CDN. Powers all 22 animation classes with smooth, tweenable animations. Configured with `gsap.defaults({ overwrite: false })` to allow concurrent tweens. |
+| **Animator.ts** | Shared GSAP utility module providing: `lerp`, `lerpColor`, `animateText`, `removeSafe`, `clearAndRemove`, `removeAll`, `killTweensOf`, `delay`, `parallel`, `sequence`. |
+| **narrowContext()** | Utility in `utils.ts` for building narrowed context objects passed to individual animation classes. |
+
 ### Core Classes
 
 | Term | Description |
 |---|---|
-| **Game** | The main orchestrator class (`js/core/Game.js`). Owns all game state, wires every system and renderer together, manages event listeners, handles render scheduling, and coordinates the turn flow. |
-| **EventBus** | A pub/sub event system (`js/core/EventBus.js`) used for cross-system communication. Key events: `phase:change`, `main:ready`, `draw:complete`, `effect:onPlay`, `effect:onKO`, `card:KO`, `leader:damage`, `life:lost`, `don:drawn`, `refresh:complete`. |
-| **TurnManager** | 5-phase state machine (`js/game-systems/TurnManager.js`). Manages phase transitions, auto-executes Refresh/Draw/DON phases, locks/unlocks player input. |
+| **Game** | The main orchestrator class (`src/core/Game.ts`). Owns all game state, wires every system and renderer together, manages event listeners, handles render scheduling, and coordinates the turn flow. Flags: `_animating` (blocks input during animations), `_inBattle` (manages battle UI state). | |
+| **EventBus** | A pub/sub event system (`src/core/EventBus.ts`) used for cross-system communication. Key events: `phase:change`, `main:ready`, `draw:complete`, `effect:onPlay`, `effect:onKO`, `card:KO`, `leader:damage`, `life:lost`, `don:drawn`, `refresh:complete`, `effect:trigger`, `deck:empty`. |
+| **TurnManager** | 5-phase state machine (`src/game-systems/TurnManager.ts`). Manages phase transitions, auto-executes Refresh/Draw/DON phases, locks/unlocks player input. `canAct` property gates player input. |
 | **DONSystem** | Handles all DON!! token operations: drawing, resting for cost, attaching to cards, returning on refresh, and saving/restoring state across turn boundaries. |
-| **CombatSystem** | Low-level combat logic (`js/game-systems/CombatSystem.js`). Calculates power, handles KO (removing card from field, sending to trash), and deals Leader damage via Life card removal. |
+| **CombatSystem** | Low-level combat logic (`src/game-systems/CombatSystem.ts`). Calculates power, handles KO (removing card from field, sending to trash), and deals Leader damage via Life card removal. |
 | **EffectSystem** | Processes card effects at various timings: On Play, On KO, When Attacking, Trigger, Counter. Includes structured effect handlers for common effect types. |
-| **RenderBatcher** | Utility that coalesces multiple render calls into a single frame to prevent redundant re-renders. Used via `game.scheduleRender()`. |
+| **RenderBatcher** | Utility (`src/core/RenderBatcher.ts`) that coalesces multiple render calls into a single frame to prevent redundant re-renders. Used via `game.scheduleRender()`. |
 
 ### Managers
 
 | Term | Description |
 |---|---|
-| **AnimationManager** | Central hub for all animations (`js/core/AnimationManager.js`). Wraps individual animation classes and provides unified API for triggering draw, DON, attack, slam, trash, shuffle, and ability activation animations. |
+| **AnimationManager** | Central hub for all animations (`src/core/AnimationManager.ts`). Wraps 22 individual animation classes (GSAP-powered) and provides unified API for triggering draw, DON, attack, slam, trash, shuffle, ability activation, and refresh animations. |
 | **BattleManager** | Orchestrates the full battle flow: triggers When Attacking effects, runs attack animation, resolves power comparison, handles KO, shows battle result UI. |
-| **DragManager** | Handles all PixiJS drag-and-drop interactions (`js/core/DragManager.js`). Supports four drag types: `handCard` (play character), `donToken` (attach DON), `fieldCard` (attack with character), and `leader` (attack with leader). Manages ghost sprites, drop target detection, highlights, snap-back animations. |
-| **ZoneManager** | Abstraction for accessing named zones on the game board (`js/ui/ZoneManager.js`). Zone names: `deck`, `hand`, `trash`, `life`, `dondeck`, `cost`, `leader`, and `field_slot_0` through `field_slot_4`. |
+| **DragManager** | Handles all PixiJS drag-and-drop interactions (`src/core/DragManager.ts`). Supports four drag types: `handCard` (play character), `donToken` (attach DON), `fieldCard` (attack with character), and `leader` (attack with leader). Manages ghost sprites, drop target detection, highlights, snap-back animations. |
+| **ZoneManager** | Abstraction for accessing named zones on the game board (`src/ui/ZoneManager.ts`). Zone names: `deck`, `hand`, `trash`, `life`, `dondeck`, `cost`, `leader`, `stage`, and `field_slot_0` through `field_slot_4`. |
 
 ### Interaction Classes
 
 | Term | Description |
 |---|---|
 | **PlayCardInteraction** | Handles the drag-from-hand-to-field flow for playing Character cards. Validates cost, manages slot occupancy (KO's existing card), triggers slam animation and On Play effects. |
-| **AttachDONInteraction** | Handles dragging DON!! tokens from Cost Area to Characters/Leader. Triggers DON burst animation and power count-up. |
-| **AttackInteraction** | Handles the full attack flow: drag field card or leader toward target, Blocker phase, Counter Phase overlay, battle resolution, and post-battle re-rendering. |
+| **DONInteraction** | Handles click-to-attach DON!! tokens from Cost Area to Characters/Leader. Triggers DON burst animation and power count-up. |
+| **AttackInteraction** | Handles the full attack flow: drag field card or leader toward target, Blocker phase, Counter Phase overlay, battle resolution, damage trigger, and post-battle re-rendering. |
+| **LeaderAttackInteraction** | Handles leader click-to-attack (P1 only). |
 
 ### Renderers
 
 | Term | Description |
 |---|---|
-| **CardRenderer** | Low-level renderer that creates PixiJS sprites for individual cards (`js/ui/CardRenderer.js`). Handles card image textures, power text overlays, counter badges, cost badges, and drag ghost creation. |
+| **CardRenderer** | Low-level renderer that creates PixiJS sprites for individual cards (`src/ui/CardRenderer.ts`). Handles card image textures, power text overlays, counter badges, cost badges, and drag ghost creation. |
 | **HandRenderer** | Renders all cards in a player's hand zone with proper layout, spacing, and interaction bindings. Includes ready-glow animation for playable cards. |
 | **FieldRenderer** | Renders Characters on the field slots and Leaders in their zones. Handles rested/active visual states, DON!! attachment display, and attack interaction binding. |
 | **ZoneRenderer** | Renders zone labels with card counts, DON!! cost tokens (with drag interaction), Life indicators, and stage cards. |
@@ -318,7 +336,9 @@ The game follows a 5-phase turn structure: `REFRESH → DRAW → DON!! → MAIN 
 
 | Term | Description |
 |---|---|
-| **RenderBatcher** | Utility that coalesces multiple render calls into a single frame to prevent redundant re-renders. Used via `game.scheduleRender()`. |
-| **SelectionOverlay** | Reusable overlay component for showing choice dialogs: Mulligan prompt, Blocker selection, and generic button-based prompts. |
+| **RenderBatcher** | Utility (`src/core/RenderBatcher.ts`) that coalesces multiple render calls into a single frame to prevent redundant re-renders. Used via `game.scheduleRender()`. |
+| **SelectionOverlay** | Reusable overlay component for showing choice dialogs: Mulligan prompt, Blocker selection, Trigger selection, and generic button-based prompts. |
 | **CounterPhaseOverlay** | Specialized full-screen overlay for the Counter Step during battle. Dims non-relevant elements, highlights counter-able cards in hand, provides drag-to-trash interaction and "Process Battle" button. Has a 15-second auto-resolve timeout to prevent game hangs. |
 | **KeywordHighlighter** | Utility that scans effect text for recognized keywords (e.g., `Draw`, `Trash`, `DON!!`, `Power`) and applies color highlighting in the Card Info Panel. |
+| **_animating** | Game instance flag. Set to `true` during any animation. Guards `PlayCardInteraction.onHandCardDrag` to reject drags during battle animations. |
+| **_inBattle** | Game instance flag. Set to `true` during battle flow. Guards `ActionButton` state updates and ticker behavior to prevent overriding battle-managed UI. |

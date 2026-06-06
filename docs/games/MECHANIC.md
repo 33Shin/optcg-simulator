@@ -139,48 +139,54 @@ The defender may counter multiple times in one battle (any number of characters 
 
 ---
 
-## Implementation Status (as of 2026-05-29)
+## Implementation Status (as of 2026-06-06)
 
 ### Implemented
 | Feature | Status | Notes |
 |---|---|-|
-| Card zones (deck, hand, field, life, DON!!, cost, trash, leader) | ✅ | All zones rendered via `ZoneRenderer.ts` |
-| Turn phases (Refresh → Draw → DON!! → Main → End) | ✅ | Phase bar updates visually via `PhaseBar.ts` |
-| DON!! system (draw, rest, attach, return on refresh) | ✅ | Data-level + cost token rendering + attach animation |
-| Card play (characters to field) | ✅ | Drag-to-field + click-to-play via info panel |
-| Battle resolution (attacker vs defender power comparison) | ✅ | Target selection UI, KO logic, win condition |
+| Card zones (deck, hand, field, life, DON!!, cost, trash, leader, stage) | ✅ | All zones rendered via `ZoneRenderer.ts` |
+| Turn phases (Refresh → Draw → DON!! → Main → End) | ✅ | Phase bar updates visually via `PhaseBar.ts` with animated fill |
+| DON!! system (draw, rest, attach, return on refresh) | ✅ | Data-level + cost token rendering + attach animation + cost token shift animation |
+| Card play (characters to field) | ✅ | Drag-to-field + click-to-play via info panel + `SlamAnimation` |
+| Battle resolution (attacker vs defender power comparison) | ✅ | Target selection UI, KO logic, win condition, leader damage tracking |
 | Battle attack animation | ✅ | 7-phase: lift, pullback, slam, impact, shockwave, bounce, rest-angle return (see ANIMATION.md) |
 | Mulligan (P1 only) | ✅ | Full animation via `SelectionOverlay` + mulligan flow in `InitialDrawAnimation` (see ANIMATION.md) |
 | Card info panel with keyword highlighting | ✅ | Play button, enable/disable logic via `CardInfoPanel` + `KeywordHighlighter` |
-| P2 AI opponent | ✅ | 3 behavior classes (`PlayCharacterAI`, `AttachDONAI`, `AttackAI`) — plays characters, attaches DON, attacks by power |
+| P2 AI opponent | ✅ | 4 AI classes (`AI.ts`, `PlayCharacterAI`, `AttachDONAI`, `AttackAI`) — plays characters, attaches DON, attacks by power, evaluates damage triggers |
 | Life-card commit animation | ✅ | Animated via `CommitLifeAnimation` with fly-to-life-zone sequence |
-| DON!! attach animation | ✅ | Gold burst + screen shake + power count-up via `animateDONBurst()` + `animatePowerCount()` |
+| DON!! attach animation | ✅ | Gold burst + screen shake + power count-up via `DONBurstAnimation` + `PowerCountAnimation` |
 | Slam animation (play to field) | ✅ | Card slam effect via `SlamAnimation` |
 | Fly-to-trash animation | ✅ | Used when replacing characters on play via `FlyToTrashAnimation` |
 | AI play animation | ✅ | Visual feedback for AI actions via `AIPlayAnimation` |
-| Blocker system | ✅ | `CharacterCard._parseBlocker()` detects keyword. `_checkBlockerPhase()` intercepts battle flow. P1 gets SelectionOverlay UI. P2 uses `_aiChooseBlocker()`. Blocker activation VFX (orange glow + rest animation). |
-| Counter Phase | ✅ | `AttackInteraction._counterPhase()` + drag-to-play UI for defender. DON cost charged, power boost applied. Combat Zone overlay with countdown timer. Hand re-rendered after counter phase to prevent drops during battle resolution. |
-| Damage Phase Trigger | ✅ | When Leader is hit with 0 Life, top deck card flies from deck to center with flip animation. Two buttons appear: "Trigger" (green, enabled only if card has trigger) and "Pass" (orange). AI evaluates trigger effects via `AI.shouldPlayDamageTrigger()`. |
+| AI counter animation | ✅ | AI counter card fly-to-center + fade-out via `AICounterAnimation` |
+| Refresh phase animation | ✅ | Stand up rested cards/DON with activation glow via `ActiveAnimation` |
+| Blocker system | ✅ | `CharacterCard._parseBlocker()` detects keyword. `_checkBlockerPhase()` intercepts battle flow. P1 gets SelectionOverlay UI. P2 uses `_aiChooseBlocker()`. Blocker VFX via `BlockerActivateAnimation` + `BlockerRestAnimation`. |
+| Counter Phase | ✅ | `AttackInteraction._counterPhase()` + `CounterPhaseOverlay` UI for defender. DON cost charged, power boost applied. Combat Zone overlay with countdown timer. 15s auto-resolve timeout. Hand re-rendered after counter phase. |
+| Damage Phase Trigger | ✅ | `DamageTriggerAnimation` (human + AI variants). Top deck card flies from deck to center with flip animation. Trigger/Pass buttons. AI evaluates via `AI.shouldPlayDamageTrigger()`. |
 | [On Play] effects | ✅ | Wired into character/event play flow via `EffectSystem.processOnPlay()` |
 | [On K.O.] effects | ✅ | Called from `BattleManager._resolveBattleOutcome()` |
 | [When Attacking] effects | ✅ | Called from `AttackInteraction.resolveBattle()` with `AbilityActivateAnimation` VFX |
+| Event play animation | ✅ | Event card fly-to-center, cyan VFX, fly-to-trash via `EventPlayAnimation` |
+| Card pick animation | ✅ | Card selection overlay for multi-card effects via `CardPickAnimation`. Nami-specific 2-card pick with top/bottom deck placement. |
 | Action Button hover/press effects | ✅ | GlowFilter hover effect, text scale 1.15x, callback fires on `pointerup` with fallback for state race |
 | Combat Zone overlay | ✅ | PixiJS overlay showing attacker/defender info, phase label, countdown timer |
 | Action Button state management | ✅ | 3 states (endTurn/disabled/gameOver). During battle, `_inBattle` guard prevents state override. Ticker respects battle-managed button state. |
 | Hand interaction guards | ✅ | `PlayCardInteraction.onHandCardDrag` checks `game._animating` to reject drags during battle animations |
+| GSAP-powered animations | ✅ | All 22 animation classes use GSAP. Shared utilities in `Animator.ts` (lerp, lerpColor, animateText, parallel, sequence, safe cleanup) |
+| Render batching | ✅ | `RenderBatcher.ts` coalesces render calls per frame |
 
 ### Not Yet Implemented
 | Feature | Status | Notes |
 |---|---|-|
 | Full strategic AI opponent | ❌ | Current AI is basic: plays highest-power character, attaches DON to all targets, attacks weakest with strongest. No card evaluation or resource management strategy. |
-| KO animation during battle | ❌ | `FlyToTrashAnimation` exists but not wired into `BattleManager.resolveBattle()` — characters removed silently on KO |
+| KO animation during battle | ❌ | `FlyToTrashAnimation` exists but not wired into `BattleManager._resolveBattleOutcome()` — characters removed silently on combat KO |
 | Battle clash/power-reveal animation | ❌ | Instant resolution after attack animation |
-| Event card playback | ⚠️ | `_playEvent()` trashes card, effect execution via structured effects + regex fallback. Only specific patterns recognized (draw, trash from hand, add DON, rest opponent, shuffle hand, life manipulation). Fragile — breaks on wording variations. |
-| Stage card playback | ⚠️ | `_playStage()` renders to stage zone but no stage-specific game logic or interaction |
+| Event card playback (full) | ⚠️ | `_playEvent()` trashes card, effect execution via structured effects + regex fallback. Recognized patterns: draw, trash from hand, add DON, rest opponent, shuffle hand, life manipulation. Fragile — breaks on wording variations. |
+| Stage card playback | ⚠️ | Renders to stage zone but no stage-specific game logic or interaction |
 | P2 mulligan UI | ❌ | Only P1 gets mulligan overlay via `SelectionOverlay.showMulligan()`. P2 initial draw is animated face-down with no choice. |
 | Trigger activation UI (Draw Phase) | ⚠️ | `EffectSystem.checkTrigger()` fires and adds delay, but no player confirmation dialog. `SelectionOverlay.showTrigger()` exists but never called from turn flow. |
-| P2 leader attack interaction | ❌ | `_bindLeaderClick` only binds for P1 (`pid === 1` check). AI handles its own attacks internally. |
-| Deck-out loss condition | ❌ | `TurnManager._draw()` emits `deck:empty` event when deck runs out, but nothing in `Game.js` listens to trigger a loss. |
+| P2 leader attack interaction | ❌ | `LeaderAttackInteraction` only binds for P1. AI handles its own attacks internally. |
+| Deck-out loss condition | ❌ | `TurnManager._draw()` emits `deck:empty` event when deck runs out, but nothing in `Game.ts` listens to trigger a loss. |
 | [Main] activatable effects | ❌ | No confirm dialog or activation flow |
 | [Your Turn] / [Opponent's Turn] timing | ❌ | No enforcement |
 | [DON!! xN] requirement checking | ❌ | Not implemented |

@@ -15,29 +15,47 @@ optcg/
 │   ├── core/                     # 7 files — central engine + managers
 │   │   ├── Game.ts               # Central engine: holds GameState, runs ticker loop
 │   │   ├── EventBus.ts           # Pub/sub for decoupled system communication
-│   │   ├── AnimationManager.ts   # Orchestrates all animations (16 animation classes)
+│   │   ├── AnimationManager.ts   # Orchestrates all animations (22 animation classes, GSAP-powered)
 │   │   ├── BattleManager.ts      # Attack flow, power calc, KO resolution
 │   │   ├── DragManager.ts        # PixiJS drag: hand→field, DON→card, field→opponent, leader attack
 │   │   ├── CardPlayManager.ts    # Play character/event/stage, DON cost, validation
-│   │   ├── Animator.ts           # Shared animation utilities
+│   │   ├── Animator.ts           # GSAP-powered shared animation utilities
 │   │   ├── RenderBatcher.ts      # Coalesces render calls per frame
-│   │   ├── animations/           # 16 animation classes + utils
+│   │   ├── animations/           # 22 animation classes + utils
 │   │   │   ├── CountdownAnimation.ts
 │   │   │   ├── InitialDrawAnimation.ts
 │   │   │   ├── DONDrawAnimation.ts
+│   │   │   ├── DONSlamAnimation.ts
 │   │   │   ├── DONDetachAnimation.ts
+│   │   │   ├── DONBurstAnimation.ts
 │   │   │   ├── AttackAnimation.ts
 │   │   │   ├── SlamAnimation.ts
 │   │   │   ├── FlyToTrashAnimation.ts
+│   │   │   ├── FlyToTopDeckAnimation.ts
 │   │   │   ├── FlyToBottomDeckAnimation.ts
+│   │   │   ├── FlyToHandAnimation.ts
 │   │   │   ├── ShuffleAnimation.ts
 │   │   │   ├── CommitLifeAnimation.ts
 │   │   │   ├── AIPlayAnimation.ts
+│   │   │   ├── AICounterAnimation.ts
+│   │   │   ├── AbilityActivateAnimation.ts
+│   │   │   ├── ActiveAnimation.ts
+│   │   │   ├── BlockerActivateAnimation.ts
+│   │   │   ├── BlockerRestAnimation.ts
+│   │   │   ├── CardPickAnimation.ts
+│   │   │   ├── CostTokenShiftAnimation.ts
+│   │   │   ├── DamageTriggerAnimation.ts
+│   │   │   ├── EventPlayAnimation.ts
+│   │   │   ├── FadeOutGhostAnimation.ts
+│   │   │   ├── HandPositionAnimation.ts
+│   │   │   ├── PowerCountAnimation.ts
+│   │   │   ├── SnapBackAnimation.ts
 │   │   │   └── utils.ts
 │   │   └── interactions/         # Delegated interaction handlers
 │   │       ├── PlayCardInteraction.ts
-│   │       ├── AttachDONInteraction.ts
-│   │       └── AttackInteraction.ts
+│   │       ├── DONInteraction.ts
+│   │       ├── AttackInteraction.ts
+│   │       └── LeaderAttackInteraction.ts
 │   ├── game-systems/             # 4 files — game logic
 │   │   ├── TurnManager.ts        # 5-phase state machine + first-turn rules
 │   │   ├── DONSystem.ts          # DON!! deck, cost area, attach/detach
@@ -64,14 +82,13 @@ optcg/
 │   │   ├── CombatZone.ts         # Battle overlay with attacker/defender info
 │   │   ├── CounterPhaseOverlay.ts # Counter phase UI
 │   │   └── SelectionOverlay.ts   # HTML overlays: mulligan, trigger, pick-card dialogs
-│   ├── ai-behaviour/             # 5 files — AI opponent system
-│   │   ├── AI.ts                 # Orchestrates AI turn flow
-│   │   ├── AIBehaviour.ts        # Base class with shared utilities
+│   ├── ai-behaviour/             # 4 files — AI opponent system
+│   │   ├── AI.ts                 # Orchestrates AI turn flow, damage trigger decisions
 │   │   ├── PlayCharacterAI.ts    # Plays highest-power character from hand
 │   │   ├── AttachDONAI.ts        # Attaches DON to all available targets
 │   │   └── AttackAI.ts           # Attacks weakest target with strongest attacker
 │   └── data/                     # Card database and deck definitions
-│       ├── cardDatabase.ts       # Central lookup: card_id → full card data
+│       ├── cardDatabase.ts       # Central lookup: 64 cards keyed by cardId
 │       └── decks/                # One TS file per deck definition + index barrel
 │           ├── allCardData.ts
 │           └── index.ts
@@ -87,7 +104,10 @@ optcg/
 ## Design Principles
 
 ### 1. No Global State
-All game state lives inside `Game.js`. Systems receive references, not globals.
+All game state lives inside `Game.ts`. Systems receive references, not globals.
+
+### 1b. GSAP-Powered Animations
+All 22 animation classes use GSAP (loaded via CDN) for smooth, tweenable animations. Shared utilities in `Animator.ts` provide lerp, lerpColor, animateText, parallel/sequence composition, and safe cleanup patterns.
 
 ### 2. EventBus for Communication
 Systems communicate via published events, not direct calls:
@@ -101,12 +121,15 @@ eventBus.on('phase:change', (e) => { if (e.phase === 'main') this.enableAttacks(
 
 ### 3. Deck Data is Plugged In
 Adding a new deck requires only:
-1. Create `src/data/decks/NewDeck.ts` with card list
+1. Create `src/data/decks/NewDeck.ts` with card list (characters, events, optional stages)
 2. Add new cards to `src/data/cardDatabase.ts`
 3. Add new image files to `public/assets/imgs/`
-4. Register in `src/main.ts` deck selector
+4. Import and register in `src/main.ts` (or use the existing `index.ts` barrel in `decks/`)
 
 **No touching** core, systems, or UI code.
+
+### 4b. Card Database
+The `cardDatabase.ts` contains 64 unique cards across both decks. Each card has: id, name, cost, power, color, category, effect text, trigger, counter value, blocker flag, and image path.
 
 ### 4. Card Entity Hierarchy
 ```
@@ -127,7 +150,7 @@ const DB = new CardDatabase();
 const luffyDeck = new Deck(BluePurpleLuffyDefinition, DB);
 const namiDeck = new Deck(BlueYellowNamiDefinition, DB);
 
-// Step 3: Collect all unique image paths
+// Step 3: Collect all unique image paths (64 unique cards)
 const imagePaths = DB.getAllImagePaths();
 
 // Step 4: Batch-load all textures via PixiJS Assets
@@ -137,7 +160,7 @@ const textures = await PIXI.Assets.load(imagePaths);
 const game = new Game({ deck1: luffyDeck, deck2: namiDeck, textures });
 ```
 
-### 6. Zone Container Layout (GameBoard.js)
+### 6. Zone Container Layout (GameBoard.ts)
 Each player has their own `ZoneManager` instance. Zones are PixiJS Containers at fixed positions.
 
 | Zone | P1 (y) | P2 (y) | Purpose |
@@ -145,7 +168,7 @@ Each player has their own `ZoneManager` instance. Zones are PixiJS Containers at
 | Hand | 610 | 20 | Cards in hand |
 | Cost | 530 | 100 | DON!! for paying costs |
 | Field | 470 | 160 | Leader + 5 character slots |
-| Extras | 580 | 70 | DON!! deck, Life, Trash |
+| Extras | 580 | 70 | DON!! deck, Life, Trash, Stage |
 
 CardRenderer creates sprites at a standard size of 100x140px, scalable.
 
@@ -158,9 +181,9 @@ REFRESH → DRAW → DON!! → MAIN → END → (next player)
 - Main waits for player input (or AI execution for P2)
 - End is triggered by "Next Phase" button or AI auto-end
 
-### 8. State Shape (GameState inside Game.js)
+### 8. State Shape (GameState inside Game.ts)
 
-`this.state` holds turn/phase flags. `this.players` is a separate direct property on the `Game` instance.
+`this.state` holds turn/phase flags. `this.players` is a separate direct property on the `Game` instance. Additional flags: `_animating` (blocks input during animations), `_inBattle` (manages battle UI state).
 
 ```javascript
 // this.state
@@ -172,19 +195,27 @@ REFRESH → DRAW → DON!! → MAIN → END → (next player)
   gameOver: false,
   winner: null,
   battle: null,               // set during active battle
+  leaderDamage: { 1: 0, 2: 0 }, // cumulative damage per leader
+}
+
+// Direct properties on Game instance
+{
+  _animating: false,           // blocks input during any animation
+  _inBattle: false,            // manages battle UI state, guards action button
 }
 
 // this.players (direct property on Game instance)
 {
   1: {
-    deck: Deck,               // Deck instance
-    hand: [],                 // Card[] in hand
-    field: [null, ...],       // CharacterCard[] or null, max 5 slots
-    leader: LeaderCard,       // Leader card data
-    life: [],                 // Life cards (face-down from deck)
-    trash: [],                // Trashed cards
-    donDeck: [],              // DON!! remaining in DON deck
-    costArea: [],             // DON!! tokens in cost area
+    deck: Deck,               # Deck instance
+    hand: [],                 # Card[] in hand
+    field: [null, ...],       # CharacterCard[] or null, max 5 slots
+    leader: LeaderCard,       # Leader card data
+    life: [],                 # Life cards (face-down from deck)
+    trash: [],                # Trashed cards
+    donDeck: [],              # DON!! remaining in DON deck
+    costArea: [],             # DON!! tokens in cost area
+    stage: null,              # Stage card (max 1 per player)
   },
   2: { ... },                 // Same structure for opponent
 }
@@ -205,6 +236,7 @@ export default {
   leader: { cardId: 'OP11-040', count: 1 },
   characters: [ { cardId: 'OP13-043', count: 4 }, ... ],
   events:      [ { cardId: 'OP09-078', count: 4 }, ... ],
+  stages:      [ { cardId: 'OP01-050', count: 2 }, ... ],  // optional
 };
 ```
 
@@ -227,42 +259,53 @@ npm run preview   # Preview production build
 ## System Dependencies (DAG)
 
 ```
-main.js
- ├── Game.js (central orchestrator)
- │    ├── this.state          # GameState plain object
- │    ├── this.players        # Player data (deck, hand, field, life, trash, DON)
- │    ├── EventBus            # Pub/sub for cross-system communication
- │    │
- │    ├── Managers            # Instantiated in Game.js constructor
- │    │   ├── AnimationManager     → 16 animation classes via shared ctx
- │    │   ├── BattleManager        → attack flow, power calc, KO resolution
- │    │   ├── DragManager          → hand→field, DON→card, field→opponent, leader drag
- │    │   └── CardPlayManager      → play character/event/stage, cost validation
- │    │
- │    ├── Systems             # Receive state references + EventBus
- │    │   ├── TurnManager        → phase transitions, auto-phase execution
- │    │   ├── DONSystem          → DON!! deck, cost area, attach/detach
- │    │   ├── CombatSystem       → attack declare, power calc, battle resolve
- │    │   └── EffectSystem       → ability text parsing, trigger detection
- │    │
- │    ├── Renderers           # Receive zoneManager + player data references
- │    │   ├── CardRenderer       → sprite factory from texture + card data
- │    │   ├── HandRenderer       → fanning layout in hand zone
- │    │   ├── FieldRenderer      → characters + leader on field slots
- │    │   └── ZoneRenderer       → deck, DON!!, cost tokens, life, trash zones
- │    │
- │    └── UI                  # PixiJS stage + HTML overlays
- │        ├── GameBoard          → stage setup, backgrounds, zone layout
- │        ├── ZoneManager        → container creation per zone per player
- │        ├── UIComponents       → phase bar, info panel, turn counter, buttons
- │        ├── PhaseBar           → visual phase progress indicator
- │        ├── CardInfoPanel      → hover/click card details with play button
- │        ├── KeywordHighlighter → color-coded keyword detection in effect text
- │        └── SelectionOverlay   → HTML overlays: mulligan, trigger, pick-card
- │
+main.ts
+ └── Game.ts (central orchestrator)
+     ├── this.state             # GameState plain object
+     ├── this.players           # Player data (deck, hand, field, life, trash, DON, stage)
+     ├── EventBus               # Pub/sub for cross-system communication
+     │
+     ├── Managers               # Instantiated in Game.ts constructor
+     │   ├── AnimationManager   → 22 animation classes via shared ctx (GSAP-powered)
+     │   ├── BattleManager      → attack flow, power calc, KO resolution, win check
+     │   ├── DragManager        → hand→field, DON→card, field→opponent, leader drag
+     │   └── CardPlayManager    → play character/event/stage, cost validation
+     │
+     ├── Interactions           # Delegated interaction handlers
+     │   ├── PlayCardInteraction      → hand drag-to-field, click-to-play, DON cost
+     │   ├── DONInteraction           → click DON tokens to attach to characters/leader
+     │   ├── AttackInteraction        → full battle flow: target, blocker, counter, resolve
+     │   └── LeaderAttackInteraction  → leader click-to-attack (P1 only)
+     │
+     ├── Systems                # Receive state references + EventBus
+     │   ├── TurnManager        → phase transitions, auto-phase execution
+     │   ├── DONSystem          → DON!! deck, cost area, attach/detach
+     │   ├── CombatSystem       → attack declare, power calc, battle resolve
+     │   └── EffectSystem       → ability text parsing, trigger detection, timing
+     │
+     ├── Renderers              # Receive zoneManager + player data references
+     │   ├── CardRenderer       → sprite factory from texture + card data
+     │   ├── HandRenderer       → fanning layout in hand zone
+     │   ├── FieldRenderer      → characters + leader on field slots
+     │   └── ZoneRenderer       → deck, DON!!, cost tokens, life, trash, stage zones
+     │
+     └── UI                     # PixiJS stage + HTML overlays
+         ├── GameBoard          → stage setup, backgrounds, zone layout
+         ├── ZoneManager        → container creation per zone per player
+         ├── UIComponents       → phase bar, info panel, turn counter, buttons
+         ├── PhaseBar           → visual phase progress indicator
+         ├── CardInfoPanel      → hover/click card details with play button
+         ├── KeywordHighlighter → color-coded keyword detection in effect text
+         ├── ActionButton       → half-circle PASS button (3 states: endTurn/disabled/gameOver)
+         ├── CombatZone         → battle overlay with attacker/defender info
+         ├── CounterPhaseOverlay → counter phase UI with drag-to-play
+         └── SelectionOverlay   → HTML overlays: mulligan, trigger, blocker, pick-card
+     │
  └── AI (P2 only)
-      ├── AI.js                → orchestrates AI turn flow
-      └── AIBehaviour[]        → PlayCharacterAI, AttachDONAI, AttackAI
+      ├── AI.ts                → orchestrates AI turn flow
+      ├── PlayCharacterAI      → plays highest-power character from hand
+      ├── AttachDONAI          → attaches DON to all available targets
+      └── AttackAI             → attacks weakest target with strongest attacker
 ```
 
 ## What Each File Does
@@ -272,10 +315,12 @@ main.js
 | `main.ts` | Boot: load assets, build decks, create Game instance |
 | `Game.ts` | Owns GameState + players, runs ticker, wires all systems together |
 | `EventBus.ts` | Pub/sub: `emit(event, data)`, `on(event, handler)`, `off()`, `once()` |
-| `AnimationManager.ts` | Orchestrates 16 animation classes via shared context object |
+| `AnimationManager.ts` | Orchestrates 22 animation classes via shared context object |
+| `Animator.ts` | GSAP-powered animation utilities: lerp, lerpColor, animateText, removeSafe, parallel, sequence |
 | `BattleManager.ts` | Attack flow, power calculation, KO resolution, win condition checks |
 | `DragManager.ts` | PixiJS drag: hand→field, DON→card, field→opponent, leader attack |
 | `CardPlayManager.ts` | Play character/event/stage, DON cost payment, play validation |
+| `RenderBatcher.ts` | Coalesces render calls per frame to prevent redundant re-renders |
 | `TurnManager.ts` | Phase transitions, auto-phase execution, input gating |
 | `DONSystem.ts` | DON!! deck (10), cost area, attach/detach, count in zone |
 | `CombatSystem.ts` | Attack declare, power comparison, KO, damage to Leader |
@@ -290,22 +335,22 @@ main.js
 | `CardRenderer.ts` | Sprite factory from texture + card data overlay |
 | `HandRenderer.ts` | Render cards in hand zone with fanning layout |
 | `FieldRenderer.ts` | Render characters + leader on field slots |
-| `ZoneRenderer.ts` | Render deck, DON!!, cost tokens, life, trash zones |
+| `ZoneRenderer.ts` | Render deck, DON!!, cost tokens, life, trash, stage zones |
 | `UIComponents.ts` | Phase label, info panel, turn counter, buttons |
-| `PhaseBar.ts` | Visual phase progress indicator |
+| `PhaseBar.ts` | Visual phase progress indicator with animated fill |
 | `ActionButton.ts` | PixiJS half-circle PASS button with hover glow, 3 states (endTurn/disabled/gameOver) |
 | `CombatZone.ts` | Battle overlay with attacker/defender info, phase label, countdown timer |
-| `CounterPhaseOverlay.ts` | Counter phase UI with drag-to-play |
+| `CounterPhaseOverlay.ts` | Counter phase UI with drag-to-play, 15s auto-resolve timeout |
 | `CardInfoPanel.ts` | Hover/click card details with play button |
 | `KeywordHighlighter.ts` | Color-coded keyword detection in effect text |
-| `SelectionOverlay.ts` | HTML overlays: mulligan, trigger, pick-card dialogs |
+| `SelectionOverlay.ts` | HTML overlays: mulligan, trigger, blocker, pick-card dialogs |
 | `PlayCardInteraction.ts` | Hand card drag handler for playing characters/events |
-| `AttachDONInteraction.ts` | DON token drag handler for attaching DON |
-| `AttackInteraction.ts` | Field/leader drag handler for declaring attacks, counter phase flow |
+| `DONInteraction.ts` | DON token click-to-attach to characters/leader |
+| `AttackInteraction.ts` | Full battle flow: target selection, blocker phase, counter phase, resolution, damage trigger |
+| `LeaderAttackInteraction.ts` | Leader click-to-attack (P1 only) |
 | `AI.ts` | Orchestrates AI turn flow for P2 opponent |
-| `AIBehaviour.ts` | Base class with shared utilities (`canAct`, `renderAll`, `sleep`) |
 | `PlayCharacterAI.ts` | Plays highest-power character from hand |
 | `AttachDONAI.ts` | Attaches DON to all available targets |
 | `AttackAI.ts` | Attacks weakest target with strongest attacker |
-| `cardDatabase.ts` | Static lookup table: all card data keyed by cardId |
+| `cardDatabase.ts` | Static lookup table: 64 cards keyed by cardId |
 | `decks/*.ts` | Deck definitions: cardId + count arrays |

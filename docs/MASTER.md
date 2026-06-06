@@ -5,9 +5,10 @@ Build a browser-based One Piece Card Game (OPTCG) simulation using PixiJS v8 wit
 
 ## Core Technologies
 - **PixiJS v8** (CDN) for 2D rendering and card display
+- **GSAP** (CDN) for smooth, tweenable animations (22 animation classes)
 - **Vite + TypeScript** — Source in `src/`, Vite transpiles and bundles
 - **Modular architecture** — Entry point `src/main.ts`, core systems in `src/core/`, game systems in `src/game-systems/`
-- **Local assets** — All card images stored in `public/assets/imgs/`
+- **Local assets** — All card images stored in `public/assets/imgs/` (64 unique cards)
 
 ## Architecture Principles
 1. **Read AI/ files first** - All design decisions, game rules, mechanics, and phase plans live in the AI/ and GAME/ folders
@@ -31,14 +32,14 @@ optcg/
 │   ├── core/               # Core game systems
 │   │   ├── Game.ts         # Central orchestrator, owns all state
 │   │   ├── EventBus.ts     # Pub/sub for cross-system communication
-│   │   ├── AnimationManager.ts  # Wraps all animation classes
+│   │   ├── AnimationManager.ts  # Wraps all animation classes (22, GSAP-powered)
 │   │   ├── BattleManager.ts     # Battle flow orchestration
 │   │   ├── DragManager.ts       # PixiJS drag-and-drop
 │   │   ├── CardPlayManager.ts   # Card play validation/execution
-│   │   ├── Animator.ts          # Shared animation utilities
+│   │   ├── Animator.ts          # GSAP-powered shared animation utilities
 │   │   ├── RenderBatcher.ts     # Coalesces render calls per frame
-│   │   ├── animations/          # 18+ animation classes
-│   │   └── interactions/        # PlayCard, AttachDON, Attack interactions
+│   │   ├── animations/          # 22 animation classes
+│   │   └── interactions/        # PlayCard, DON, Attack, LeaderAttack interactions
 │   ├── game-systems/       # Game logic systems
 │   │   ├── TurnManager.ts      # 5-phase state machine
 │   │   ├── DONSystem.ts        # DON!! resource management
@@ -53,9 +54,9 @@ optcg/
 │   │   ├── ActionButton.ts, CombatZone.ts, CounterPhaseOverlay.ts
 │   │   ├── SelectionOverlay.ts, KeywordHighlighter.ts
 │   ├── ai-behaviour/       # AI opponent
-│   │   ├── AI.ts, AIBehaviour.ts, PlayCharacterAI.ts, AttachDONAI.ts, AttackAI.ts
+│   │   ├── AI.ts, PlayCharacterAI.ts, AttachDONAI.ts, AttackAI.ts
 │   └── data/               # Card database and deck definitions
-│       ├── cardDatabase.ts, decks/
+│       ├── cardDatabase.ts (64 cards), decks/
 ├── public/                 # Static assets (auto-copied to dist/ by Vite)
 │   ├── assets/
 │   │   └── imgs/           # Card images (downloaded from API)

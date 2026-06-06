@@ -3,6 +3,7 @@
 ## Stack
 - **Vite + TypeScript** (no bundler before). Source in `src/`, Vite transpiles and bundles.
 - **PixiJS** from CDN (`pixi.js@8`). Global `PIXI` is available, types via `src/types/pixi-cdn.d.ts`.
+- **GSAP** from CDN. Powers all 22 animation classes with smooth, tweenable animations.
 - Single `css/style.css` handles all styling. No lint, no test runner.
 
 ## Running the game
@@ -15,36 +16,50 @@ Open `http://localhost:8000`.
 ## Entry point & architecture
 - **`src/main.ts`** — boots PixiJS app, loads card images via `PIXI.Assets.load()`, creates `Game` instance.
 - **`src/core/Game.ts`** — owns all game state, wires every system/renderer, runs the ticker loop. The single file that ties everything together.
-- **`src/core/EventBus.ts`** — pub/sub. All cross-system communication flows through events, not direct calls. Key events: `phase:change`, `main:ready`, `draw:complete`, `effect:onPlay`, `effect:onKO`, `card:KO`, `leader:damage`.
+- **`src/core/EventBus.ts`** — pub/sub. All cross-system communication flows through events, not direct calls. Key events: `phase:change`, `main:ready`, `draw:complete`, `effect:onPlay`, `effect:onKO`, `card:KO`, `leader:damage`, `life:lost`, `don:drawn`, `refresh:complete`, `effect:trigger`, `deck:empty`.
 
 ### Folders
 | Folder | Contents |
 |---|---|
-| `src/core/` | `Game.ts`, `EventBus.ts`, `AnimationManager.ts`, `BattleManager.ts`, `DragManager.ts`, `CardPlayManager.ts` |
+| `src/core/` | `Game.ts`, `EventBus.ts`, `AnimationManager.ts`, `Animator.ts`, `BattleManager.ts`, `DragManager.ts`, `CardPlayManager.ts`, `RenderBatcher.ts` |
+| `src/core/animations/` | 22 animation classes (GSAP-powered) + `utils.ts` |
+| `src/core/interactions/` | `PlayCardInteraction.ts`, `DONInteraction.ts`, `AttackInteraction.ts`, `LeaderAttackInteraction.ts` |
 | `src/game-systems/` | `TurnManager.ts` (5-phase state machine), `DONSystem.ts`, `CombatSystem.ts`, `EffectSystem.ts` |
 | `src/entities/` | `Card.ts` (base), `LeaderCard.ts`, `CharacterCard.ts`, `EventCard.ts`, `Deck.ts` |
 | `src/ui/` | `GameBoard.ts`, `CardRenderer.ts`, `ZoneManager.ts`, `UIComponents.ts`, `HandRenderer.ts`, `FieldRenderer.ts`, `ZoneRenderer.ts`, `PhaseBar.ts`, `CardInfoPanel.ts`, `KeywordHighlighter.ts`, `ActionButton.ts`, `CombatZone.ts`, `CounterPhaseOverlay.ts`, `SelectionOverlay.ts` |
-| `src/data/` | `cardDatabase.ts` (central lookup), `decks/` (one TS file per deck definition) |
+| `src/ai-behaviour/` | `AI.ts`, `PlayCharacterAI.ts`, `AttachDONAI.ts`, `AttackAI.ts` |
+| `src/data/` | `cardDatabase.ts` (64 cards), `decks/` (one TS file per deck definition) |
 | `src/types/` | `pixi-cdn.d.ts` (ambient type declarations for global PIXI namespace) |
 | `public/assets/imgs/` | Card image files + `back.webp`, `don.png`, `don_back.png` |
 | `public/css/` | `style.css` |
 | `docs/games/` | Rules, mechanics doc, implementation status, animation reference |
 | `docs/` | Architecture docs, AI planning, instruction files, PixiJS skill references |
 
-### Dependency graph (wired inside `Game.js`)
+### Dependency graph (wired inside `Game.ts`)
 ```
 Game
- ├── GameBoard → ZoneManager       (board layout)
- ├── UIComponents                  (phase bar, turn counter, info panel)
+ ├── GameBoard → ZoneManager              (board layout)
+ ├── UIComponents                         (phase bar, turn counter, info panel)
  ├── HandRenderer, FieldRenderer, ZoneRenderer  (render cards in zones)
- ├── AnimationManager              (draw, shuffle, mulligan, DON anims)
- ├── BattleManager                 (attack flow, power calc, KO)
- ├── DragManager                   (PixiJS drag for hand→field, DON→card, field→opponent)
- ├── CardPlayManager               (play character/event, DON cost, validation)
- └── TurnManager                   (phase transitions, auto-phase timing)
+ ├── AnimationManager                     (22 GSAP-powered animation classes)
+ ├── BattleManager                        (attack flow, power calc, KO, win check)
+ ├── DragManager                          (PixiJS drag for hand→field, DON→card, field→opponent)
+ ├── CardPlayManager                      (play character/event, DON cost, validation)
+ ├── TurnManager                          (phase transitions, auto-phase timing)
+ ├── DONSystem                            (DON!! deck, cost area, attach/detach)
+ ├── EffectSystem                         (ability parsing, trigger detection, timing)
+ ├── CombatSystem                         (power calc, KO, damage)
+ ├── PlayCardInteraction                  (hand drag-to-field, click-to-play)
+ ├── DONInteraction                       (click DON tokens to attach)
+ ├── AttackInteraction                    (full battle flow: target, blocker, counter, resolve)
+ ├── LeaderAttackInteraction              (leader click-to-attack, P1 only)
+ ├── SelectionOverlay                     (mulligan, trigger, blocker, pick-card dialogs)
+ ├── CombatZone                           (battle overlay)
+ ├── CounterPhaseOverlay                  (counter phase UI)
+ └── AI (P2 only)                         (AI.ts + PlayCharacterAI, AttachDONAI, AttackAI)
 ```
 
-### State shape (inside Game.js)
+### State shape (inside Game.ts)
 ```js
 {
   turnCount: 0,
@@ -56,10 +71,16 @@ Game
   battle: null,
   leaderDamage: { 1: 0, 2: 0 },
 }
+
+// Direct properties on Game instance
+{
+  _animating: false,   // blocks input during any animation
+  _inBattle: false,    // manages battle UI state, guards action button
+}
 ```
 
 ## Adding a new deck
-1. Create `src/data/decks/MyDeck.ts` exporting `{ name, colors, leader, characters, events }`.
+1. Create `src/data/decks/MyDeck.ts` exporting `{ name, colors, leader, characters, events, stages? }`.
 2. Add new card entries to `src/data/cardDatabase.ts`.
 3. Place images in `public/assets/imgs/`.
 4. Import and register in `src/main.ts` (or use the existing `index.ts` barrel in `decks/`).
@@ -78,7 +99,7 @@ The action button (PASS) has three states: `endTurn`, `disabled`, `gameOver`. Du
 Hand card drags are blocked during battle animation via `game._animating` guard in `PlayCardInteraction.onHandCardDrag`. Counter phase re-renders the defender's hand with its own drag handler. After counter phase ends, hand is re-rendered without drag handler so battle resolution cannot trigger counter drops.
 
 ## Console warnings are live state dumps
-Files like `Game.js` contain `console.warn` with field/array snapshots for debugging. These are intentional and useful during development.
+Files like `Game.ts` contain `console.warn` with field/array snapshots for debugging. These are intentional and useful during development.
 
 ## Key files for reference
 - `docs/games/MECHANIC.md` — implementation status table (what works, what doesn't)

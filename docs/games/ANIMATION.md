@@ -4,6 +4,8 @@
 
 All animations are managed through `AnimationManager.ts`, which receives a shared context object (`ctx`) containing references to `app`, `zoneManager`, `renderer`, `players`, `handRenderer`, `zoneRenderer`, and `donSystem`. Each animation is an individual class that receives `ctx` in its constructor.
 
+All 22 animation classes use **GSAP** (loaded via CDN) for smooth, tweenable animations. Shared utilities in `Animator.ts` provide composition patterns (`parallel`, `sequence`), interpolation (`lerp`, `lerpColor`), text animation (`animateText`), and safe cleanup (`removeSafe`, `killTweensOf`). GSAP is configured with `gsap.defaults({ overwrite: false })` to allow concurrent tweens on the same target.
+
 ### Shared Helpers (`core/animations/utils.ts`)
 
 | Function | Purpose |
@@ -112,16 +114,16 @@ AnimateMulligan(1)
 
 ## Turn Sequence Animations
 
-### DON!! Draw (`DONDrawAnimation.js`)
+### DON!! Draw (`DONDrawAnimation.ts` + `DONSlamAnimation.ts`)
 
 **Trigger**: `animManager.animateDONDraw(pid)` during DON!! Phase.
 
 | Detail | Value |
 |---|---|-|
-| Duration | 250ms fade-out + 300ms fade-in = ~550ms max |
-| DON deck | Top tile fades alpha 1→0 over 250ms |
-| Cost area | New DON sprite fades in alpha 0→1 over 300ms |
-| After | `zoneRenderer.renderCostTokens(pid)` + full re-render |
+| Duration | ~550ms (GSAP-configurable) |
+| DON deck | Top tile fades alpha 1→0 |
+| Cost area | New DON sprite fades in alpha 0→1 with slam effect |
+| After | `zoneRenderer.renderCostTokens(pid)` + `CostTokenShiftAnimation` repositions tokens |
 
 ### Draw Card (`MultipleDrawAnimation.js`)
 
@@ -138,13 +140,21 @@ AnimateMulligan(1)
 2. Phase 2 (300ms): Hold at center at 1.5x.
 3. Phase 3 (250ms): Center → hand slot, scale 1.5→1.0x. Existing hand sprites simultaneously reposition to make room.
 
-### Refresh Phase
+### Refresh Phase (`ActiveAnimation.js`)
 
-No dedicated animation class. `TurnManager._refresh()` runs a 400ms `_delay()`. Data updates (stand up rested, return DON!!) happen synchronously. `refresh:complete` event emitted → `Game._renderAll()`.
+**Trigger**: `animManager.animateRefresh(pid)` during Refresh Phase.
+
+| Detail | Value |
+|---|---|-|
+| Duration | ~400ms |
+| Return | Promise |
+| Visuals | Stands up all rested Characters, Leader, and DON!! tokens with activation glow effect |
+
+Data updates (stand up rested, return DON!!) happen synchronously. `refresh:complete` event emitted → `Game._renderAll()`.
 
 ---
 
-## DON!! Attach Animation (`AnimationManager.js`)
+## DON!! Attach Animation (`DONBurstAnimation.ts` + `PowerCountAnimation.ts`)
 
 **Trigger**: `animManager.animateDONBurst(targetZone)` during Main Phase when attaching DON to a character/leader.
 
@@ -153,6 +163,7 @@ No dedicated animation class. `TurnManager._refresh()` runs a 400ms `_delay()`. 
 | Duration | Configurable (default 400ms) |
 | Return | Promise |
 | Sprite placement | Added as child of target sprite (field card) |
+| Powered by | GSAP tweens |
 
 **Visuals**:
 - DON!! sprite created at bottom-left of target card, alpha 0.5.
@@ -161,7 +172,7 @@ No dedicated animation class. `TurnManager._refresh()` runs a 400ms `_delay()`. 
 - Screen shake: 10px amplitude, decays to 0 at 50% of animation.
 - Sprite removed from target card and flash removed from stage on completion.
 
-**Power count-up**: `animManager.animatePowerCount(textObject, oldPower, newPower)` runs after DON burst.
+**Power count-up**: `PowerCountAnimation` runs after DON burst.
 - Power text animates from old value to new value over 700ms.
 - Scale peaks at 1.35x at midpoint (sin arc).
 - Color transitions from white (`0xffffff`) to gold (`0xffd700`).
@@ -314,7 +325,7 @@ Rotation is computed per-case so the attacker card's **top edge faces the target
 
 ---
 
-## Animation Class Reference
+## Animation Class Reference (22 classes)
 
 | Class | File | Entry Method | Return | Purpose |
 |---|---|---|---|---|
@@ -324,6 +335,8 @@ Rotation is computed per-case so the attacker card's **top edge faces the target
 | DONDrawAnimation | `animations/DONDrawAnimation.ts` | `.animateDONDraw(pid)` | Promise | Draw DON!! token to cost area |
 | DONSlamAnimation | `animations/DONSlamAnimation.ts` | `.animate(pid, visibleCount)` | Promise | DON!! slam effect onto cost area |
 | DONDetachAnimation | `animations/DONDetachAnimation.ts` | `.animate(pid)` | Promise | Power count-down animation when DON detaches at end phase |
+| DONBurstAnimation | `animations/DONBurstAnimation.ts` | `.animate(targetZone)` | Promise | Gold burst + screen shake + power count-up on DON attach |
+| PowerCountAnimation | `animations/PowerCountAnimation.ts` | `.animate(textObject, oldPower, newPower)` | Promise | Power count-up/down animation |
 | SlamAnimation | `animations/SlamAnimation.ts` | `.animate(pid, card, targetZone)` | Promise | Card slam effect on play-to-field |
 | FlyToTrashAnimation | `animations/FlyToTrashAnimation.ts` | `.animate(pid, card, zone)` | Promise | KO → trash fly animation |
 | FlyToTopDeckAnimation | `animations/FlyToTopDeckAnimation.ts` | `.animate(pid, cards)` | Promise | Cards fly hand → center → deck (mulligan) |
@@ -333,12 +346,24 @@ Rotation is computed per-case so the attacker card's **top edge faces the target
 | CommitLifeAnimation | `animations/CommitLifeAnimation.ts` | `.animate(pid, player, cards)` | Promise | Life card commit fly animation at game start |
 | AIPlayAnimation | `animations/AIPlayAnimation.ts` | `.animate(...)` | Promise | Visual feedback for AI opponent actions |
 | AICounterAnimation | `animations/AICounterAnimation.ts` | `.animateFlyToCenter(pid, card)` / `.animateFadeOut(flyCard)` | Promise | AI counter card fly-to-center + fade-out |
-| AbilityActivateAnimation | `animations/AbilityActivateAnimation.ts` | `.animate(pid, card, zone)` | Promise | Glow/pulse VFX when card ability activates |
-| CardPickAnimation | `animations/CardPickAnimation.ts` | `.animate(pid, player, prompt)` / `.animateNami(pid, player)` | Promise | Card selection overlay for multi-card effects |
+| AbilityActivateAnimation | `animations/AbilityActivateAnimation.ts` | `.animate(pid, card, zone)` | Promise | Cyan glow/pulse VFX when card ability activates |
+| ActiveAnimation | `animations/ActiveAnimation.ts` | `.animate(pid)` | Promise | Refresh phase: stand up rested cards/DON with activation glow |
+| BlockerActivateAnimation | `animations/BlockerActivateAnimation.ts` | `.animate(pid, card, zone)` | Promise | Orange glow VFX for blocker activation |
+| BlockerRestAnimation | `animations/BlockerRestAnimation.ts` | `.animate(pid, card, zone)` | Promise | Blocker rest animation: lift, rotate 90deg, slam, bounce |
+| CardPickAnimation | `animations/CardPickAnimation.ts` | `.animate(pid, player, prompt)` / `.animateNami(pid, player)` | Promise | Card selection overlay for multi-card effects. Nami-specific 2-card pick with top/bottom deck placement |
+| CostTokenShiftAnimation | `animations/CostTokenShiftAnimation.ts` | `.animate(pid, count)` | Promise | DON cost tokens reposition when count changes |
 | DamageTriggerAnimation | `animations/DamageTriggerAnimation.ts` | `.animate(pid, player, card, hasTrigger, source)` / `.animateAI(...)` | Promise | Damage trigger fly-to-center with Trigger/Pass buttons |
+| EventPlayAnimation | `animations/EventPlayAnimation.ts` | `.animate(pid, card)` | Promise | Event card play: fly-to-center, cyan VFX, fly-to-trash |
+| HandPositionAnimation | `animations/HandPositionAnimation.ts` | `.animate(pid, cards)` | Promise | Hand cards shift to new positions after add/remove |
 | AttackAnimation | `animations/AttackAnimation.ts` | `.animateLiftAndRotate(pid, attacker, attackerZone, target, targetZone)` + `.continueAttackFromHeldState()` | Promise | 7-phase attack: lift, pullback, slam, impact, shockwave, bounce, return |
+| FadeOutGhostAnimation | `animations/FadeOutGhostAnimation.ts` | `.animate(sprite)` | Promise | Generic ghost sprite fade-out utility |
+| SnapBackAnimation | `animations/SnapBackAnimation.ts` | `.animate(ghost, targetPos)` | Promise | Ghost card snap-back on invalid drop |
 
 > **Not wired**: `PlayToFieldAnimation.ts` exists in codebase but is not imported by `AnimationManager`. Replaced by `SlamAnimation.ts`.
+>
+> **Shared utilities**: `Animator.ts` provides GSAP-powered helpers: `lerp`, `lerpColor`, `animateText`, `removeSafe`, `clearAndRemove`, `removeAll`, `killTweensOf`, `delay`, `parallel`, `sequence`. Configured with `gsap.defaults({ overwrite: false })`.
+>
+> **Context utilities**: `utils.ts` provides `easeInOut`, `makeFlyCard`, `createFlipCard`, `getDisplayTexture`, and `narrowContext()` for building narrowed context objects for animation classes.
 
 ---
 
