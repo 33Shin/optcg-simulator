@@ -29,7 +29,7 @@ class CostTokenShiftAnimation {
       const _p = { t: 0 };
       this._tween = gsap.to(_p, {
         t: 1,
-        duration: 0.5,
+        duration: 0.25,
         ease: 'power3.out',
         onUpdate: () => {
           const ease = _p.t;

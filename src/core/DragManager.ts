@@ -93,17 +93,34 @@ class DragManager {
     this._startDrag('fieldCard', { pid, card, slotIdx }, e, onCommit, onCancel, false);
   }
 
-  /**
-   * Begin dragging the leader to attack.
-   * @param {number} pid - Player ID (attacker)
-   * @param {object} leader - Leader card object
-   * @param {object} e - Pixi pointer event
-   * @param {function} onCommit - Called with (pid, leader, targetCard, targetPid)
-   * @param {function} onCancel - Called with (pid, leader)
-   */
-  beginDragLeader(pid, leader, e, onCommit, onCancel) {
-    this._startDrag('leader', { pid, leader }, e, onCommit, onCancel, false);
-  }
+    /**
+     * Begin dragging the leader to attack.
+     * @param {number} pid - Player ID (attacker)
+     * @param {object} leader - Leader card object
+     * @param {object} e - Pixi pointer event
+     * @param {function} onCommit - Called with (pid, leader, targetCard, targetPid)
+     * @param {function} onCancel - Called with (pid, leader)
+     */
+    beginDragLeader(pid, leader, e, onCommit, onCancel) {
+      this._startDrag('leader', { pid, leader }, e, onCommit, onCancel, false);
+    }
+
+    /**
+     * Begin dragging an event card from hand. Drop anywhere outside hand zone to play.
+     * @param {number} pid - Player ID
+     * @param {object} card - Event card object
+     * @param {number} handIdx - Index in hand
+     * @param {object} ghostPos - Global position in hand for snap-back animation
+     * @param {object} e - Pixi pointer event
+     * @param {function} onCommit - Called with (pid, card, handIdx)
+     * @param {function} onCancel - Called with (pid, card, handIdx)
+     * @param {function} onDragStarted - Called once drag threshold is passed
+     */
+    beginDragEventCard(pid, card, handIdx, ghostPos, e, onCommit, onCancel, onDragStarted) {
+      this._startDrag('eventCard', { pid, card, handIdx }, e, onCommit, onCancel, false);
+      this._snapBackPos = this.app.stage.toLocal(new PIXI.Point(ghostPos.x, ghostPos.y));
+      this._onDragStarted = onDragStarted || null;
+    }
 
   // --- Core drag loop ---
 
@@ -197,6 +214,31 @@ class DragManager {
       this._targetZone = targetZone;
       this._targetValid = targetValid;
       this._animateDropAndResolve(dragSource, dragType);
+    } else if (wasDrag && dragType === 'eventCard') {
+      // Event card: any drop OUTSIDE hand plays the event; dropping back in hand cancels
+      const droppedInHand = this._isDropInsideHandZone(e, dragSource.pid);
+      if (!droppedInHand) {
+        const dropPos = e.global ? new PIXI.Point(e.global.x, e.global.y) : null;
+        const res = this._onCommit(dragSource.pid, dragSource.card, dragSource.handIdx, dropPos);
+        if (res === false) {
+          this._animateSnapBack();
+        } else if (res && typeof res.then === 'function') {
+          this._commitSucceeded = true;
+          this._fadeOutGhostThenCleanup();
+          res.then((r) => {
+            if (r === false) {
+              this._animateSnapBack();
+            }
+          }).catch(() => {
+            this._animateSnapBack();
+          });
+        } else {
+          this._commitSucceeded = true;
+          this._cleanupDrag();
+        }
+      } else {
+        this._animateSnapBack();
+      }
     } else if (this._counterPhaseActive && wasDrag && dragType === 'handCard') {
       // Counter phase: ANY drop OUTSIDE hand plays card as counter; dropping back in hand cancels
       const droppedInHand = this._isDropInsideHandZone(e, dragSource.pid);
@@ -243,6 +285,7 @@ class DragManager {
   _createGhost() {
     switch (this._dragType) {
       case 'handCard':
+      case 'eventCard':
       case 'fieldCard':
       case 'leader':
         this._ghost = this.renderer.createDragGhost(
@@ -298,6 +341,9 @@ class DragManager {
       case 'handCard':
         ({ target, valid } = this._detectTarget_HandCard(e));
         break;
+      case 'eventCard':
+        ({ target, valid } = this._detectTarget_EventCard(e));
+        break;
       case 'donToken':
         ({ target, valid } = this._detectTarget_DON(e));
         break;
@@ -339,11 +385,18 @@ class DragManager {
     return { target: null, valid: false };
   }
 
-  /** Check if a drop point is inside the player's hand zone. */
-  _isDropInsideHandZone(e, pid) {
-    const handZone = this.gameBoard.getZone(pid, 'hand');
-    return handZone ? isPointInZone(handZone, e.global) : false;
-  }
+    /** Check if a drop point is inside the player's hand zone. */
+    _isDropInsideHandZone(e, pid) {
+      const handZone = this.gameBoard.getZone(pid, 'hand');
+      return handZone ? isPointInZone(handZone, e.global) : false;
+    }
+
+    /** For event cards: any drop outside hand zone is valid. */
+    _detectTarget_EventCard(e) {
+      const { pid } = this._dragSource;
+      const droppedInHand = this._isDropInsideHandZone(e, pid);
+      return { target: null, valid: !droppedInHand };
+    }
 
   _detectTarget_DON(e) {
     const global = e.global;
@@ -404,6 +457,9 @@ class DragManager {
   // --- Highlight management ---
 
   _targetKey() {
+    if (this._dragType === 'eventCard') {
+      return `${this._dragSource.pid}_event`;
+    }
     if (this._dragType === 'handCard' && typeof this._targetZone === 'number') {
       return `${this._dragSource.pid}_slot_${this._targetZone}`;
     }
@@ -444,6 +500,9 @@ class DragManager {
       case 'handCard':
         this._highlightFieldSlot(target);
         break;
+      case 'eventCard':
+        this._highlightEventDrop();
+        break;
       case 'donToken':
         this._highlightTargetCard(target);
         break;
@@ -477,21 +536,33 @@ class DragManager {
     this._animateAlpha(this._highlight, 1, 120);
   }
 
-  _highlightAttackTarget(target) {
-    let zone = null;
-    if (target.type === 'field') {
-      zone = this.gameBoard.getZone(target.pid, `field_slot_${target.slotIdx}`);
-    } else if (target.type === 'leader') {
-      zone = this.gameBoard.getZone(target.pid, 'leader');
+    _highlightAttackTarget(target) {
+      let zone = null;
+      if (target.type === 'field') {
+        zone = this.gameBoard.getZone(target.pid, `field_slot_${target.slotIdx}`);
+      } else if (target.type === 'leader') {
+        zone = this.gameBoard.getZone(target.pid, 'leader');
+      }
+
+      if (!zone) return;
+      this._highlight = this.renderer.createDropHighlight(zone.width, zone.height, 0xf44336);
+      this._highlight.name = 'attackTargetHighlight';
+      this._highlight.alpha = 0;
+      zone.addChild(this._highlight);
+      this._animateAlpha(this._highlight, 1, 120);
     }
 
-    if (!zone) return;
-    this._highlight = this.renderer.createDropHighlight(zone.width, zone.height, 0xf44336);
-    this._highlight.name = 'attackTargetHighlight';
-    this._highlight.alpha = 0;
-    zone.addChild(this._highlight);
-    this._animateAlpha(this._highlight, 1, 120);
-  }
+    _highlightEventDrop() {
+      // Subtle full-screen green tint to indicate event can be played
+      this._highlight = new PIXI.Graphics();
+      this._highlight.name = 'eventDropHighlight';
+      this._highlight.rect(0, 0, this.app.renderer.width, this.app.renderer.height)
+                     .fill({ color: 0x00ff88, alpha: 0.15 });
+      this._highlight.eventMode = 'none';
+      this._highlight.alpha = 0;
+      this.app.stage.addChildAt(this._highlight, 0);
+      this._animateAlpha(this._highlight, 1, 120);
+    }
 
   _removeHighlight() {
     const hl = this._highlight;

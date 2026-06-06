@@ -3,7 +3,9 @@ const SEG_H = 44;
 const GAP = 6;
 const ARROW_W = 14;
 const PAD = 18;
-const PHASE_POSITION = { x: 302, y: 360 };
+const PHASE_POSITION = { x: 275, y: 360 };
+const COMBAT_ZONE_W = 650;
+const COMBAT_ZONE_H = 72;
 const PHASES = ['Refresh', 'Draw', 'DON!!', 'Main', 'End'];
 
 class CombatZone {
@@ -15,7 +17,8 @@ class CombatZone {
     this._atkInfo = null;
     this._defInfo = null;
     this._totalW = PHASES.length * SEG_W + (PHASES.length - 1) * (GAP + ARROW_W);
-    this._bgH = SEG_H + PAD * 2;
+    this._bgW = COMBAT_ZONE_W;
+    this._bgH = COMBAT_ZONE_H;
     this._timerInterval = null;
     this._remainingSeconds = 0;
   }
@@ -25,21 +28,20 @@ class CombatZone {
 
     this.container = new PIXI.Container();
     this.container.name = 'combatZone';
-    this.container.position.set(PHASE_POSITION.x - 5, PHASE_POSITION.y - 5);
+    this.container.position.set(PHASE_POSITION.x, PHASE_POSITION.y);
     this.app.stage.addChild(this.container);
 
-    // Background — covers phase bar completely
+    // Background — same size as center zone
     const bg = new PIXI.Graphics();
     bg.name = 'combatZoneBg';
-    bg.roundRect(0, 0, this._totalW + PAD * 2 + 10, this._bgH + 10, 18)
+    bg.roundRect(0, 0, this._bgW, this._bgH, 18)
       .fill({ color: 0x1a0a0a, alpha: 0.95 })
       .stroke({ width: 2, color: 0xff4422, alpha: 0.8 });
     this.container.addChild(bg);
 
     // Center positions for layout
-    const containerW = this._totalW + PAD * 2 + 10;
-    const centerX = containerW / 2;
-    const centerY = (this._bgH + 10) / 2;
+    const centerX = this._bgW / 2;
+    const centerY = this._bgH / 2;
     const sideGap = 210; // distance from center to attacker/defender info
 
     // Attacker info (left side)
@@ -107,13 +109,13 @@ class CombatZone {
     // Divider lines — between side info and center phase label
     const divider1 = new PIXI.Graphics();
     divider1.name = 'combatDivider1';
-    divider1.moveTo(centerX - sideGap / 2, PAD).lineTo(centerX - sideGap / 2, this._bgH)
+    divider1.moveTo(centerX - sideGap / 2, 0).lineTo(centerX - sideGap / 2, this._bgH)
       .stroke({ width: 1, color: 0x444466, alpha: 0.5 });
     this.container.addChild(divider1);
 
     const divider2 = new PIXI.Graphics();
     divider2.name = 'combatDivider2';
-    divider2.moveTo(centerX + sideGap / 2, PAD).lineTo(centerX + sideGap / 2, this._bgH)
+    divider2.moveTo(centerX + sideGap / 2, 0).lineTo(centerX + sideGap / 2, this._bgH)
       .stroke({ width: 1, color: 0x444466, alpha: 0.5 });
     this.container.addChild(divider2);
   }

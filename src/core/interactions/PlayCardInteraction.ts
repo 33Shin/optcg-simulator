@@ -10,6 +10,14 @@ class PlayCardInteraction {
       ui.showCardInfo(card, playerId);
       return;
     }
+    if (card.category === 'event') {
+      if (!this._hasMainEffect(card)) {
+        ui.showCardInfo(card, playerId);
+        return;
+      }
+      this._beginDragEventCard(pointerEvent, playerId, card, handIdx);
+      return;
+    }
     if (card.category !== 'character') {
       ui.showCardInfoWithPlay(card, playerId, () => this.game._playCard(card, playerId));
       return;
@@ -36,6 +44,84 @@ class PlayCardInteraction {
     );
 
     pointerEvent.data.eventMode = 'grabbed';
+  }
+
+  _beginDragEventCard(pointerEvent, playerId, card, handIdx) {
+    const { handRenderer, zoneManager } = this.game;
+    const handZone = zoneManager.getZone(playerId, 'hand');
+    const layout = handRenderer.computeLayout(handZone, this.game.players[playerId].hand.length);
+    const snapPosition = layout ? layout.positions[handIdx] : { x: 600, y: 700 };
+    const ghostPosition = handZone.toGlobal(
+      new PIXI.Point(snapPosition.x + (layout?.cardW ?? 100) / 2, snapPosition.y + (layout?.cardH ?? 140) / 2)
+    );
+
+    this.game.dragManager.beginDragEventCard(
+      playerId, card, handIdx, ghostPosition, pointerEvent,
+      (_pid, _card, _handIdx, _dropPos) => this.commitPlayEvent(_pid, _card, _handIdx, _dropPos),
+      (_pid, _card, _handIdx) => this.snapBackToHand(_pid, _card, _handIdx),
+      () => {
+        const sprite = handRenderer.handSprites[playerId]?.[handIdx];
+        if (sprite) sprite.visible = false;
+        handRenderer.clearAllReadyGlow(playerId);
+      }
+    );
+
+    pointerEvent.data.eventMode = 'grabbed';
+  }
+
+  async commitPlayEvent(pid, card, handIdx, dropPosition) {
+    const { cardPlayManager, donSystem, players, zoneRenderer, handRenderer, effectSystem, animManager, ui, renderBatcher } = this.game;
+    const player = players[pid];
+    const cost = card.cost || 0;
+    if (!cardPlayManager.canPay(pid, cost)) return false;
+    this.game._animating = true;
+    try {
+      // Pay DON cost
+      const restIndices = [];
+      let remaining = cost;
+      for (let i = 0; i < player.costArea.length && remaining > 0; i++) {
+        if (player.costArea[i].active && !player.costArea[i].rested) {
+          restIndices.push(i);
+          remaining--;
+        }
+      }
+      donSystem.restDON(pid, cost);
+
+      // Remove from hand
+      const idx = player.hand.indexOf(card);
+      if (idx !== -1) player.hand.splice(idx, 1);
+
+      handRenderer.renderCardRemoved(pid, handIdx, (...args) => this.onHandCardDrag(...args));
+      zoneRenderer.renderCostTokens(pid);
+
+      // Start DON rest animation
+      let donRestAnim = Promise.resolve();
+      if (cost > 0 && restIndices.length > 0 && animManager) {
+        donRestAnim = animManager.animateDONRest(pid, cost, restIndices);
+      }
+
+      // Play event animation: fly to center, glow, fly to trash
+      const eventAnim = animManager.animateEventPlay(pid, card, dropPosition);
+
+      await Promise.all([donRestAnim, eventAnim]);
+
+      // Move card to trash
+      player.trash.push(card);
+
+      // Process on-play effects
+      await effectSystem.processCardSpecificEffects(
+        card, pid, player,
+        animManager, handRenderer, zoneRenderer, this.game.turnManager
+      );
+
+      zoneRenderer.renderAll();
+      this.game._bindHandInteraction(pid);
+      ui.showCardInfo(card, pid);
+      renderBatcher.flushSync();
+    } catch (_err) {
+    } finally {
+      this.game._animating = false;
+    }
   }
 
   snapBackToHand(pid, card, handIdx) {
@@ -162,6 +248,18 @@ class PlayCardInteraction {
     this.game._bindHandInteraction(pid);
     ui.showCardInfo(card, pid);
     renderBatcher.flushSync();
+  }
+
+  /** Check if an event card has a [Main] effect (not just [Counter]). */
+  _hasMainEffect(card) {
+    if (card.effects && Array.isArray(card.effects)) {
+      const mainEffects = card.effects.filter(e => e.timing !== 'counter' && e.timing !== 'trigger');
+      if (mainEffects.length > 0) return true;
+    }
+    if (card.effect && typeof card.effect === 'string') {
+      if (card.effect.includes('[Main]')) return true;
+    }
+    return false;
   }
 }
 

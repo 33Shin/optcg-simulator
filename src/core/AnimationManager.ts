@@ -23,6 +23,7 @@ import AbilityActivateAnimation from './animations/AbilityActivateAnimation';
 import MultipleDrawAnimation from './animations/MultipleDrawAnimation';
 import CardPickAnimation from './animations/CardPickAnimation';
 import DamageTriggerAnimation from './animations/DamageTriggerAnimation';
+import EventPlayAnimation from './animations/EventPlayAnimation';
 import { narrowContext } from './animations/utils';
 
 class AnimationManager {
@@ -77,6 +78,8 @@ class AnimationManager {
     this.cardPick.name = 'cardPick';
     this.damageTrigger = new DamageTriggerAnimation(narrowContext(this.ctx, DamageTriggerAnimation));
     this.damageTrigger.name = 'damageTrigger';
+    this.eventPlay = new EventPlayAnimation(narrowContext(this.ctx, EventPlayAnimation));
+    this.eventPlay.name = 'eventPlay';
   }
 
   animateAttack(pid, attacker, attackerZone, target, targetZone) {
@@ -182,6 +185,13 @@ class AnimationManager {
   /** Cancel in-flight blocker rest animation. */
   cancelBlockerRest() {
     this.blockerRest.cancel();
+  }
+
+  /**
+   * Animate event card play: fly to center, glow VFX, fly to trash.
+   */
+  async animateEventPlay(pid, card, handGlobalPos) {
+    return this.eventPlay.animate(pid, card, handGlobalPos);
   }
 }
 
