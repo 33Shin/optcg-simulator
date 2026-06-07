@@ -127,11 +127,13 @@ class Game {
     this.actionState = 'idle';
     this._animating = false;
     this._donVisibleCount = { 1: 0, 2: 0 };
-    this._savedDONStates = {};
     this._playerAIEnabled = false;
   }
 
   _pendingSlams = 0;
+  _animatingDONDraw = false;
+  _initialCards = {};
+  _readyGlowTicker = null;
 
   /** Create a fresh player object from deck definition. */
   _createPlayer(deck) {
@@ -147,6 +149,7 @@ class Game {
     };
   }
 
+  /** Initialize the game: board, zones, UI, event listeners, countdown then mulligan flow. */
   init() {
     this.gameBoard.init();
     this.zoneManager.init();
@@ -154,7 +157,6 @@ class Game {
     this._setupEndTurnButton();
     this._setupGameForSetup();
     this._setupEventListeners();
-    this._aiTurn = this._aiTurn.bind(this);
     this.ui.updatePhase();
     this.ui.updateTurn();
     this.fieldRenderer.renderLeaders();
@@ -166,7 +168,6 @@ class Game {
   _setupGameForSetup() {
     for (const pid of [1, 2]) {
       this.players[pid].deck.shuffle();
-      this._initialCards = this._initialCards || {};
       this._initialCards[pid] = [];
       for (let i = 0; i < 5; i++) {
         const card = this.players[pid].deck.draw();
@@ -280,6 +281,7 @@ class Game {
   // --- Event listeners ---
 
   _setupEventListeners() {
+    // Phase events
     this.eventBus.on('phase:change', async (data) => {
       if (data.phase) this.state.currentPhase = data.phase;
       this.ui.updatePhase();
@@ -300,23 +302,28 @@ class Game {
       });
     });
 
+    // Refresh complete
     this.eventBus.on('refresh:complete', () => {
       this.scheduleRender(() => {
         if (this._playerAIEnabled) {
           this.fieldRenderer.renderField(1);
         } else {
           this.fieldRenderer.renderFieldWithInteraction(1, (...args) => this.attackInteraction.onFieldCardDrag(...args));
-          this._bindLeaderInteraction(1);
         }
         this.fieldRenderer.renderField(2);
         this.fieldRenderer.renderLeaders();
+        if (!this._playerAIEnabled) {
+          this._bindLeaderInteraction(1);
+        }
         this._renderDONTokens();
         this.zoneRenderer.renderAll();
         this.zoneRenderer.renderLifeIndicatorsBoth();
       });
     });
 
+    // Main phase ready
     this.eventBus.on('main:ready', () => {
+      if (this.state.gameOver) return;
       // Enable DON bonus for current player's cards at start of main phase
       const pid = this.state.currentPlayer;
       const p = this.players[pid];
@@ -324,6 +331,12 @@ class Game {
         if (card) card._donBonusActive = true;
       }
       if (p.leader) p.leader._donBonusActive = true;
+      // Bind interactions for P1 human player
+      if (!this._playerAIEnabled) {
+        this._bindHandInteraction(1);
+        this._bindFieldInteraction(1);
+        this.ui.setEndTurnBtn(this.state.currentPlayer === 1);
+      }
       // Re-render to show updated power with DON bonus
       this.scheduleRender(() => {
         if (pid === 1 && !this._playerAIEnabled) {
@@ -332,12 +345,16 @@ class Game {
           this.fieldRenderer.renderField(pid);
         }
         this.fieldRenderer.renderLeaders();
-        if (pid === 1 && !this._playerAIEnabled) {
-          this._bindLeaderInteraction(pid);
+        // Bind leader interaction AFTER renderLeaders() so the handler attaches to the new sprite
+        if (!this._playerAIEnabled) {
+          this._bindLeaderInteraction(1);
         }
+        this._renderDONTokens();
       });
+      if (this.state.currentPlayer === 2 || this._playerAIEnabled) this._aiTurn();
     });
 
+    // Draw complete
     this.eventBus.on('draw:complete', () => {
       this.scheduleRender(() => {
         this.handRenderer.render(this.state.currentPlayer);
@@ -345,32 +362,12 @@ class Game {
       });
     });
 
+    // Deck empty — immediate game over
     this.eventBus.on('deck:empty', (data) => {
-      const pid = data.player;
-      this.state.gameOver = true;
-      this.state.winner = pid === 1 ? 2 : 1;
-      this.ui.updatePhase();
-      this.cleanup();
-      this.animManager.cancelBlockerActivate();
-      this.animManager.cancelBlockerRest();
-      this.dragManager.cancel();
-      this.renderBatcher.cancel();
-      this.combatZone.hide();
-      this.gameOverOverlay.show(this.state.winner);
+      this._triggerGameOver(data.player === 1 ? 2 : 1);
     });
 
-    this.eventBus.on('main:ready', () => {
-      if (this.state.gameOver) return;
-      if (!this._playerAIEnabled) {
-        this._bindHandInteraction(1);
-        this._bindFieldInteraction(1);
-        this._bindLeaderInteraction(1);
-        this.ui.setEndTurnBtn(this.state.currentPlayer === 1);
-      }
-      this.scheduleRender(() => this._renderDONTokens());
-      if (this.state.currentPlayer === 2 || this._playerAIEnabled) this._aiTurn();
-    });
-
+    // DON events
     this.eventBus.on('don:phaseStart', (data) => {
       const pid = data.player;
       this._donVisibleCount[pid] = this.players[pid].costArea.length;
@@ -380,6 +377,7 @@ class Game {
       await this._animateDONSlam(data.playerId);
     });
 
+    // Effect events
     this.eventBus.on('effect:addDON', async (data) => {
       await this.animManager.animateDONDraw(data.playerId);
       await this._animateDONSlam(data.playerId);
@@ -395,6 +393,7 @@ class Game {
       this.scheduleRender(() => this._renderAll());
     });
 
+    // Battle events
     this.eventBus.on('leader:damage', async (data) => {
       const pid = this._findPid(data.player);
       if (!pid) return;
@@ -471,6 +470,7 @@ class Game {
       // becomes clickable and can fire endTurn() mid-battle.
     });
 
+    // Card KO
     this.eventBus.on('card:KO', () => {
       this.scheduleRender(() => this._renderFieldsAndZones());
     });
@@ -521,13 +521,13 @@ class Game {
     });
   }
 
-  _onPhaseRefresh(pid) {
-    // DONs are still attached to cards, returnAllDON() in TurnManager handles returning them
-    // No need to restore from saved state anymore
+  _onPhaseRefresh(_pid) {
+    // DON return + stand-up handled by TurnManager.returnAllDON() + ActiveAnimation
   }
 
   // --- Render helpers ---
 
+  /** Schedule a render callback, coalesced by RenderBatcher to avoid redundant re-renders. */
   scheduleRender(cb) {
     this.renderBatcher.schedule(cb);
   }
@@ -575,7 +575,7 @@ class Game {
 
   // ============ DRAG INTERACTIONS (delegated) ============
 
-  // --- 1. Hand card -> Field slot (Play Character) ---
+  // --- Hand card -> Field slot (Play Character) ---
 
   _bindHandInteraction(playerId) {
     this.handRenderer.renderWithInteraction(
@@ -586,8 +586,9 @@ class Game {
   }
 
   // --- DON token -> Character/Leader (Attach DON) ---
+  // Handled via _renderDONTokens() which calls renderCostTokensInteractive()
 
-  // --- 3. Field character -> Opponent (Attack) ---
+  // --- Field character -> Opponent (Attack) ---
 
   _bindFieldInteraction(pid) {
     this.fieldRenderer.renderFieldWithInteraction(
@@ -596,7 +597,7 @@ class Game {
     );
   }
 
-  // --- 4. Leader -> Opponent (Attack) ---
+  // --- Leader -> Opponent (Attack) ---
 
   _bindLeaderInteraction(pid) {
     this.fieldRenderer.bindLeaderInteraction(
@@ -608,12 +609,14 @@ class Game {
 
   // --- Battle resolution (delegated to AttackInteraction) ---
 
+  /** Resolve a battle by delegating to AttackInteraction. */
   async _resolveBattle(pid, attacker, target, targetPlayer) {
     await this.attackInteraction.resolveBattle(pid, attacker, target, targetPlayer);
   }
 
   // --- Play card via button (fallback) ---
 
+  /** Play a card from hand via button (fallback for info panel Play button). */
   async _playCard(card, pid) {
     if (!this.turnManager.canAct) {
       return;
@@ -648,24 +651,29 @@ class Game {
     if (this.ui?.actionButton?._actionTicker) {
       this.app.ticker.remove(this.ui.actionButton._actionTicker);
     }
-    this.animManager.attack._stopFloatAnimation();
+    this.animManager.attack?._stopFloatAnimation?.();
   }
 
   // --- Win condition ---
 
+  /** Trigger game-over flow: set state, cleanup, cancel animations, show overlay. */
+  _triggerGameOver(winnerPid) {
+    this.state.gameOver = true;
+    this.state.winner = winnerPid;
+    this.ui.updatePhase();
+    this.cleanup();
+    this.animManager.cancelBlockerActivate();
+    this.animManager.cancelBlockerRest();
+    this.dragManager.cancel();
+    this.renderBatcher.cancel();
+    this.combatZone.hide();
+    this.gameOverOverlay.show(winnerPid);
+  }
+
   _checkWinCondition(damagedPid) {
-    const damage = (this.state.leaderDamage || {})[damagedPid] || 0;
+    const damage = this.state.leaderDamage[damagedPid] || 0;
     if (damage > 0) {
-      this.state.gameOver = true;
-      this.state.winner = damagedPid === 1 ? 2 : 1;
-      this.ui.updatePhase();
-      this.cleanup();
-      this.animManager.cancelBlockerActivate();
-      this.animManager.cancelBlockerRest();
-      this.dragManager.cancel();
-      this.renderBatcher.cancel();
-      this.combatZone.hide();
-      this.gameOverOverlay.show(this.state.winner);
+      this._triggerGameOver(damagedPid === 1 ? 2 : 1);
     }
   }
 }

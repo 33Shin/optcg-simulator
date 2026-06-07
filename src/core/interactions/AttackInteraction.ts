@@ -770,10 +770,14 @@ class AttackInteraction {
       fieldRenderer.renderField(1);
     } else {
       fieldRenderer.renderFieldWithInteraction(1, (...args) => this.onFieldCardDrag(...args));
-      this.game._bindLeaderInteraction(1);
     }
     fieldRenderer.renderField(2);
     fieldRenderer.renderLeaders();
+    // Bind leader interaction AFTER renderLeaders() so the pointerdown handler
+    // is attached to the freshly-created leader sprite (not the one that gets replaced)
+    if (!this.game._playerAIEnabled) {
+      this.game._bindLeaderInteraction(1);
+    }
     zoneRenderer.renderAll();
     this.game._renderDONTokens();
   }
