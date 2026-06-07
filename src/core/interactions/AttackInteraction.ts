@@ -82,7 +82,7 @@ class AttackInteraction {
       // (Run before removing attacker so the field sprite stays visible during ability VFX)
       const hasWhenAttacking = (attacker.effects && Array.isArray(attacker.effects) && attacker.effects.some(e => e.timing === 'whenAttacking'))
         || this.game.effectSystem.registry.hasTiming(attacker.cardId, 'whenAttacking');
-      if (hasWhenAttacking) {
+       if (hasWhenAttacking) {
         await animManager.abilityActivate.animate(pid, attacker, attackerZone);
         await this.game.effectSystem.processWhenAttacking(attacker, players[pid]);
         combatZone.updatePower(attacker, target);

@@ -125,9 +125,9 @@ class TurnManager {
     // Signal DON phase start so Game can reset animation state
     this.eventBus.emit('don:phaseStart', { player: pid });
 
-    let count = 2;
+    let count = 6;
     if (this.firstTurn) {
-      count = 1;
+      count = 4;
     }
 
     for (let i = 0; i < count && this.players[pid].donDeck.length > 0; i++) {
