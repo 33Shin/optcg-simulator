@@ -342,6 +342,7 @@ class AttackInteraction {
 
   /** Called when a counter card is dropped. */
    async _commitCounter(pid, card, handIdx, dropPos) {
+    console.log(`[COUNTER-DROP] _commitCounter entered: pid=${pid} card=${card?.name} handIdx=${handIdx} dropPos=${dropPos ? `${dropPos.x},${dropPos.y}` : 'null'} ctx=${!!this._counterContext}`);
     const ctx = this._counterContext;
     if (!ctx || !card) return false;
     // Prevent double-commit (my handler + DragManager may both fire) — use object reference, not cardId, since copies share the same cardId
@@ -578,32 +579,6 @@ class AttackInteraction {
     const donRestAnims = [];
     if (cost > 0 && restIndices.length > 0 && this.game.animManager) {
       donRestAnims.push(this.game.animManager.animateDONRest(defenderPid, cost, restIndices));
-    }
-
-    if (card.effect && card.effect.match(/DON!!\s*-\d+/i)) {
-      const donSubMatch = card.effect.match(/DON!!\s*(-?)(\d+)/i);
-      if (donSubMatch) {
-        const subCount = parseInt(donSubMatch[2]);
-        // Capture indices before resting DONs
-        const extraRestIndices = [];
-        let extraRemaining = subCount;
-        for (let i = 0; i < defender.costArea.length && extraRemaining > 0; i++) {
-          if (defender.costArea[i].active && !defender.costArea[i].rested) {
-            extraRestIndices.push(i);
-            extraRemaining--;
-          }
-        }
-        if (subCount > 0 && extraRestIndices.length > 0 && this.game.animManager) {
-          donRestAnims.push(this.game.animManager.animateDONRest(defenderPid, subCount, extraRestIndices));
-        }
-        for (let i = 0; i < subCount;) {
-          const don = defender.costArea.find(d => d.active && !d.rested);
-          if (!don) break;
-          don.active = false;
-          don.rested = true;
-          i++;
-        }
-      }
     }
 
     target._counterBoost = (target._counterBoost || 0) + powerBoost;

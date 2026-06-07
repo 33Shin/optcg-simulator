@@ -177,6 +177,22 @@ class BaseDragHandler {
       this._animateSnapBack();
       this._deferCleanup = true;
       return;
+    } else if (wasDrag && this._options?.inCounterPhase) {
+      // Counter phase: drop outside hand zone commits the counter card
+      const dropPos = this._getGhostDropPosition();
+      const success = this.resolveDrop(dragSource, dropPos);
+      if (success && typeof success.then === 'function') {
+        this._handleAsyncResolve(success);
+        return;
+      }
+      if (!success) {
+        this._animateSnapBack();
+        this._deferCleanup = true;
+        return;
+      }
+      if (this._ghost && this._ghost.parent) {
+        this._ghost.parent.removeChild(this._ghost);
+      }
     } else if (wasDrag && this._snapBackPos && this._ghost) {
       this._animateSnapBack();
       this._deferCleanup = true;
