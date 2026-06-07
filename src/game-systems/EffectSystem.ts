@@ -242,7 +242,6 @@ class EffectSystem {
   async processWhenAttacking(card, player) {
     // Check registry first
     const hasRegistryEffect = this.registry.hasTiming(card.cardId, 'whenAttacking');
-    console.log(`[EffectSystem] processWhenAttacking card=${card.cardId} registry=${hasRegistryEffect} life=${player.life.length}`);
     if (hasRegistryEffect) {
       const cls = this.registry.get(card.cardId);
       const pid = this._findPid(player);

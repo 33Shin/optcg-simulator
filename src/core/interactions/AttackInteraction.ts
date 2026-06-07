@@ -342,7 +342,6 @@ class AttackInteraction {
 
   /** Called when a counter card is dropped. */
    async _commitCounter(pid, card, handIdx, dropPos) {
-    console.log(`[COUNTER-DROP] _commitCounter entered: pid=${pid} card=${card?.name} handIdx=${handIdx} dropPos=${dropPos ? `${dropPos.x},${dropPos.y}` : 'null'} ctx=${!!this._counterContext}`);
     const ctx = this._counterContext;
     if (!ctx || !card) return false;
     // Prevent double-commit (my handler + DragManager may both fire) — use object reference, not cardId, since copies share the same cardId
