@@ -58,7 +58,7 @@ class Game {
     this.zoneRenderer = new ZoneRenderer(this.zoneManager, this.renderer, this.players, this.ui);
 
     // Selection overlay
-    this.selectionOverlay = new SelectionOverlay(app, this.renderer);
+    this.selectionOverlay = new SelectionOverlay(app, this.renderer, this);
 
     // Counter phase overlay (initialized after animManager)
     this.counterPhaseOverlay = null;
@@ -507,12 +507,15 @@ class Game {
     // Run DON detach animation to show power going down
     await this.animManager.animateDONDetach(pid);
 
-    // Disable DON bonus for this player's cards during opponent's turn
+    // Disable DON bonus BEFORE restoreTurnPowerMods so currentPower matches displayed value
     const p = this.players[pid];
     for (const card of p.field) {
       if (card) card._donBonusActive = false;
     }
     if (p.leader) p.leader._donBonusActive = false;
+
+    // Restore turn-limited power modifications with count-down animation
+    await this.effectSystem.restoreTurnPowerMods();
 
     // Re-render field to update power text (DON bonus removed during opponent's turn)
     this.scheduleRender(() => {

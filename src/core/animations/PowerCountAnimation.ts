@@ -7,7 +7,7 @@ class PowerCountAnimation {
     this.ctx = ctx;
   }
 
-  animate(textObject, oldPower, newPower, duration = 700, colorFrom = 0xffffff, colorTo = 0xffd700) {
+  animate(textObject, oldPower, newPower, duration = 700, colorFrom = 0xffffff, colorTo = 0xffd700, noScale = false) {
     if (!textObject) return Promise.resolve();
     const fromR = (colorFrom >> 16) & 255, fromG = (colorFrom >> 8) & 255, fromB = colorFrom & 255;
     const toR = (colorTo >> 16) & 255, toG = (colorTo >> 8) & 255, toB = colorTo & 255;
@@ -22,9 +22,11 @@ class PowerCountAnimation {
           const t = proxy.t;
           const displayPower = Math.round(oldPower + (newPower - oldPower) * t);
           textObject.text = String(displayPower);
-          const liftArc = Math.sin(t * Math.PI);
-          const scalePeak = 1 + 0.35 * liftArc;
-          textObject.scale.set(scalePeak);
+          if (!noScale) {
+            const liftArc = Math.sin(t * Math.PI);
+            const scalePeak = 1 + 0.35 * liftArc;
+            textObject.scale.set(scalePeak);
+          }
 
           const r = Math.round(fromR + (toR - fromR) * t);
           const g = Math.round(fromG + (toG - fromG) * t);
@@ -33,6 +35,9 @@ class PowerCountAnimation {
         },
         onComplete: () => {
           textObject.text = String(newPower);
+          if (!noScale) {
+            textObject.scale.set(1);
+          }
           resolve();
         },
       });

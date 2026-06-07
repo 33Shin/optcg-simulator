@@ -16,6 +16,10 @@ export interface EffectContext {
   pid: number;
   /** The player whose effect is executing. */
   player: object;
+  /** The timing that triggered this effect. */
+  timing: TimingType;
+  /** EffectSystem for registering turn-limited modifiers. */
+  effectSystem: object;
   /** All players map. */
   players: Record<string, object>;
   /** EventBus for cross-system communication. */

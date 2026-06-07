@@ -1,16 +1,17 @@
 import { gsap } from 'gsap';
 
 class DONDetachAnimation {
-  static requires = ['players', 'zoneManager'];
+  static requires = ['players', 'zoneManager', 'game'];
 
   constructor(ctx) {
     this.ctx = ctx;
   }
 
   async animate(pid) {
-    const { players, zoneManager } = this.ctx;
+    const { players, zoneManager, game } = this.ctx;
     const player = players[pid];
     const duration = 0.5;
+    const turnMods = game?.effectSystem?._turnPowerMods || [];
 
     const targets = [];
 
@@ -18,6 +19,8 @@ class DONDetachAnimation {
     for (let i = 0; i < 5; i++) {
       const card = player.field[i];
       if (!card || card.donAttached <= 0) continue;
+      // Skip cards with turn power mods — restoreTurnPowerMods handles them
+      if (turnMods.some(m => m.card === card)) continue;
       const zone = zoneManager.getZone(pid, `field_slot_${i}`);
       if (!zone) continue;
       const sprite = zone.children.find(c => c.isFieldSprite);
@@ -34,7 +37,7 @@ class DONDetachAnimation {
         const sprite = zone.children.find(c => c.isLeaderSprite);
         if (sprite) {
           const powerText = sprite.children.find(c => c.isPowerText);
-          if (powerText && player.leader.donAttached > 0) {
+          if (powerText && player.leader.donAttached > 0 && !turnMods.some(m => m.card === player.leader)) {
             targets.push({ powerText, card: player.leader });
           }
         }

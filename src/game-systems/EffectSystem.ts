@@ -149,16 +149,19 @@ class EffectSystem {
     this.animManager = animManager;
     this.registry = new EffectRegistry();
     this.optTracker = {};
+    this._turnPowerMods = [];
   }
 
   /**
    * Build an EffectContext object from current state.
    */
-  _buildContext(card, pid, player) {
+   _buildContext(card, pid, player, timing) {
     const ctx = {
       card,
       pid,
       player,
+      timing,
+      effectSystem: this,
       players: this.players,
       eventBus: this.eventBus,
       animManager: this.animManager,
@@ -205,7 +208,7 @@ class EffectSystem {
     if (this.registry.hasTiming(card.cardId, 'onPlay')) {
       const cls = this.registry.get(card.cardId);
       const pid = this._findPid(player);
-      const ctx = this._buildContext(card, pid, player);
+      const ctx = this._buildContext(card, pid, player, 'onPlay');
       this.eventBus.emit('effect:onPlay', { card, player });
       await new cls().execute(ctx);
       return;
@@ -223,7 +226,7 @@ class EffectSystem {
     if (this.registry.hasTiming(card.cardId, 'onKO')) {
       const cls = this.registry.get(card.cardId);
       const pid = this._findPid(player);
-      const ctx = this._buildContext(card, pid, player);
+      const ctx = this._buildContext(card, pid, player, 'onKO');
       this.eventBus.emit('effect:onKO', { card, player });
       await new cls().execute(ctx);
       return;
@@ -243,7 +246,7 @@ class EffectSystem {
     if (hasRegistryEffect) {
       const cls = this.registry.get(card.cardId);
       const pid = this._findPid(player);
-      const ctx = this._buildContext(card, pid, player);
+      const ctx = this._buildContext(card, pid, player, 'whenAttacking');
       this.eventBus.emit('effect:whenAttacking', { card, player });
       await new cls().execute(ctx);
       return true;
@@ -288,7 +291,7 @@ class EffectSystem {
     if (this.registry.hasTiming(card.cardId, 'trigger')) {
       const cls = this.registry.get(card.cardId);
       const pid = this._findPid(player);
-      const ctx = this._buildContext(card, pid, player);
+      const ctx = this._buildContext(card, pid, player, 'trigger');
       await new cls().execute(ctx);
       return;
     }
@@ -373,6 +376,77 @@ class EffectSystem {
     for (const [pid, p] of Object.entries(this.players)) {
       if (p === playerObj) return parseInt(pid);
     }
+    return null;
+  }
+
+  /**
+   * Register a turn-limited power modification.
+   * The original power is restored at end of turn with count-down animation.
+   */
+  registerTurnPowerMod(card, originalPower, pid) {
+    this._turnPowerMods.push({ card, originalPower, pid });
+  }
+
+  /**
+   * Restore all turn-limited power modifications at end of turn.
+   * Animates power count-down for each modified card.
+   */
+  async restoreTurnPowerMods() {
+    if (this._turnPowerMods.length === 0) return;
+
+    const mods = [...this._turnPowerMods];
+    this._turnPowerMods = [];
+
+    for (const mod of mods) {
+      const { card, originalPower, pid } = mod;
+      // DON bonus may still be displayed on screen (DON detach skips turn-mod cards)
+      const donBonus = card.donAttached > 0 ? card.donAttached * 1000 : 0;
+      const animFrom = (card.power || 0) + donBonus;
+      const animTo = originalPower;
+      if (animFrom === animTo) {
+        continue;
+      }
+
+      // Find power text on field sprite
+      const powerText = this._findPowerText(pid, card);
+      if (powerText) {
+        const hasDon = card.donAttached > 0;
+        const fromColor = hasDon ? 0xffd700 : 0xffffff;
+        await this.animManager.animatePowerCount(
+          powerText, animFrom, animTo, 600,
+          fromColor, fromColor, true
+        );
+      }
+
+      card.power = originalPower;
+    }
+  }
+
+  _findPowerText(pid, card) {
+    const player = this.players[pid];
+    if (!player) return null;
+
+    // Check field slots
+    const fieldIdx = player.field.indexOf(card);
+    if (fieldIdx >= 0) {
+      const zoneManager = this.animManager.ctx.zoneManager;
+      const zone = zoneManager.getZone(pid, `field_slot_${fieldIdx}`);
+      if (zone) {
+        const sprite = zone.children.find(c => c.isFieldSprite);
+        if (sprite) return sprite.children.find(c => c.isPowerText);
+      }
+    }
+
+    // Check leader
+    if (player.leader === card) {
+      const zoneManager = this.animManager.ctx.zoneManager;
+      const zone = zoneManager.getZone(pid, 'leader');
+      if (zone) {
+        const sprite = zone.children.find(c => c.isLeaderSprite);
+        if (sprite) return sprite.children.find(c => c.isPowerText);
+      }
+    }
+
     return null;
   }
 }

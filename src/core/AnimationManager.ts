@@ -147,8 +147,8 @@ class AnimationManager {
   /**
    * Animate power text counting up with scale peak and color interpolation.
    */
-  animatePowerCount(textObject, oldPower, newPower, duration = 700, colorFrom = 0xffffff, colorTo = 0xffd700) {
-    return this.powerCount.animate(textObject, oldPower, newPower, duration, colorFrom, colorTo);
+  animatePowerCount(textObject, oldPower, newPower, duration = 700, colorFrom = 0xffffff, colorTo = 0xffd700, noScale = false) {
+    return this.powerCount.animate(textObject, oldPower, newPower, duration, colorFrom, colorTo, noScale);
   }
 
   animateShuffle(pid) {
