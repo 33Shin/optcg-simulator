@@ -107,22 +107,13 @@ class Game {
     this.app = app;
     this.eventBus = eventBus;
 
-    this.state = {
-      turnCount: 0,
-      currentPlayer: 1,
-      currentPhase: null,
-      phaseLocked: false,
-      gameOver: false,
-      winner: null,
-      battle: null,
-      leaderDamage: { 1: 0, 2: 0 },
-    };
-
     // Delegated SRP managers (created first so their methods are available during wiring)
     this.eventOrchestrator = new EventOrchestrator(this);
     this.mulliganManager = new MulliganManager(this);
     this.renderCoordinator = new RenderCoordinator(this);
     this.gameStateManager = new GameStateManager(this);
+
+    this.state = this.gameStateManager.initState();
 
     this.players = {
       1: this.mulliganManager.createPlayer(p1Deck),
@@ -185,7 +176,8 @@ class Game {
     );
     this.cardPlayManager = new CardPlayManager(
       this.players, this.donSystem, this.effectSystem,
-      this.zoneRenderer, this.handRenderer, this.fieldRenderer, this.ui, this.battleManager
+      this.zoneRenderer, this.handRenderer, this.fieldRenderer, this.ui, this.battleManager,
+      () => this.turnManager.canAct
     );
     this.turnManager = new TurnManager(
       this.state, eventBus, this.players,
@@ -212,26 +204,14 @@ class Game {
     this.gameBoard.init();
     this.zoneManager.init();
     this.ui.init();
-    this._setupEndTurnButton();
     this.mulliganManager.prepareSetup();
     this.eventOrchestrator.setup();
     this.ui.updatePhase();
     this.ui.updateTurn();
     this.fieldRenderer.renderLeaders();
     this.zoneRenderer.renderAll();
-    this._setupReadyGlowTicker();
+    this.gameStateManager.setupReadyGlowTicker();
     this.animManager.countdown.run().then(() => this.mulliganManager.startMulliganFlow());
-  }
-
-  _setupEndTurnButton() {
-    this.ui.setEndTurnCallback(() => {
-      if (!this._animating && this.turnManager.canAct) this.turnManager.endTurn();
-    });
-  }
-
-  _setupReadyGlowTicker() {
-    this._readyGlowTicker = () => this.handRenderer.updateReadyGlow(1);
-    this.app.ticker.add(this._readyGlowTicker);
   }
 
   // --- Render helpers (delegated) ---
@@ -246,17 +226,44 @@ class Game {
     await this.attackInteraction.resolveBattle(pid, attacker, target, targetPlayer);
   }
 
-  // --- Play card via button (fallback) ---
+  // --- Play card via button (delegated) ---
 
   async _playCard(card: any, pid: number) {
-    if (!this.turnManager.canAct) return;
-    const res = this.cardPlayManager.canPlay(pid, card);
-    if (!res.ok) return;
-    await this.cardPlayManager.play(card, pid);
+    await this.cardPlayManager.tryPlay(card, pid);
   }
 
   async _aiTurn() {
     await this.ai.runTurn(this.state.currentPlayer);
+  }
+
+  // --- Interaction binding (delegated thin wrappers) ---
+
+  _bindHandInteraction(playerId: number) {
+    this.renderCoordinator.bindHandInteraction(playerId);
+  }
+
+  _bindFieldInteraction(pid: number) {
+    this.renderCoordinator.bindFieldInteraction(pid);
+  }
+
+  _bindLeaderInteraction(pid: number) {
+    this.renderCoordinator.bindLeaderInteraction(pid);
+  }
+
+  // --- Render helpers (delegated thin wrappers) ---
+
+  _renderDONTokens() {
+    this.renderCoordinator.renderDONTokens();
+  }
+
+  _renderAll() {
+    this.renderCoordinator.renderAll();
+  }
+
+  // --- State helpers (delegated thin wrappers) ---
+
+  _findPid(playerObj: any): number | null {
+    return this.gameStateManager.findPid(playerObj);
   }
 }
 

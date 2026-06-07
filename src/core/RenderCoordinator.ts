@@ -21,15 +21,15 @@ class RenderCoordinator {
 
   /** Render everything: hands, fields, leaders, DON tokens, zones, life indicators. */
   renderAll() {
-    this._bindHandInteraction(1);
+    this.bindHandInteraction(1);
     this.game.handRenderer.render(2);
-    this._bindFieldInteraction(1);
+    this.bindFieldInteraction(1);
     this.game.fieldRenderer.renderField(2);
     this.game.fieldRenderer.renderLeaders();
     this.renderDONTokens();
     this.game.zoneRenderer.renderAll();
     this.game.zoneRenderer.renderLifeIndicatorsBoth();
-    this._bindLeaderInteraction(1);
+    this.bindLeaderInteraction(1);
   }
 
   /** Render DON cost tokens for both players. */

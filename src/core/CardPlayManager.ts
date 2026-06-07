@@ -1,5 +1,5 @@
 class CardPlayManager {
-  constructor(players, donSystem, effectSystem, zoneRenderer, handRenderer, fieldRenderer, ui, battleManager) {
+  constructor(players, donSystem, effectSystem, zoneRenderer, handRenderer, fieldRenderer, ui, battleManager, canAct) {
     this.players = players;
     this.donSystem = donSystem;
     this.effectSystem = effectSystem;
@@ -8,6 +8,15 @@ class CardPlayManager {
     this.fieldRenderer = fieldRenderer;
     this.ui = ui;
     this.battleManager = battleManager;
+    this.canAct = canAct;
+  }
+
+  /** Guarded card play: checks turn state, validates, then plays. */
+  async tryPlay(card, pid) {
+    if (!this.canAct()) return;
+    const res = this.canPlay(pid, card);
+    if (!res.ok) return;
+    await this.play(card, pid);
   }
 
   canPay(pid, cost) {

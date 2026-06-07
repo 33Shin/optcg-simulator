@@ -1,3 +1,4 @@
+import type { GameState } from '../types/game';
 import type Game from './Game';
 
 class GameStateManager {
@@ -5,6 +6,26 @@ class GameStateManager {
 
   constructor(game: Game) {
     this.game = game;
+  }
+
+  /** Initialize game state object. */
+  initState(): GameState {
+    return {
+      turnCount: 0,
+      currentPlayer: 1,
+      currentPhase: null,
+      phaseLocked: false,
+      gameOver: false,
+      winner: null,
+      battle: null,
+      leaderDamage: { 1: 0, 2: 0 },
+    };
+  }
+
+  /** Setup ready glow ticker for hand rendering. */
+  setupReadyGlowTicker() {
+    this.game._readyGlowTicker = () => this.game.handRenderer.updateReadyGlow(1);
+    this.game.app.ticker.add(this.game._readyGlowTicker);
   }
 
   /** Find player ID from player object reference. */

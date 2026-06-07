@@ -1,4 +1,3 @@
-import EventBus from './EventBus';
 import type Game from './Game';
 
 class EventOrchestrator {
@@ -9,6 +8,7 @@ class EventOrchestrator {
   }
 
   setup() {
+    this._setupEndTurnButton();
     this._setupPhaseListeners();
     this._setupRefreshListeners();
     this._setupMainReadyListeners();
@@ -18,6 +18,12 @@ class EventOrchestrator {
     this._setupEffectListeners();
     this._setupBattleListeners();
     this._setupKOListeners();
+  }
+
+  _setupEndTurnButton() {
+    this.game.ui.setEndTurnCallback(() => {
+      if (!this.game._animating && this.game.turnManager.canAct) this.game.turnManager.endTurn();
+    });
   }
 
   _setupPhaseListeners() {
